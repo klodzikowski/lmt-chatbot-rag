@@ -1,41 +1,58 @@
-# LMT Chatbot #2 (Memory, skills, knowledge)
+# LMT Chatbot #3 (RAG)
 
-Homework: 
+A reference fork of [`lmt-chatbot-skills`](https://github.com/klodzikowski/lmt-chatbot-skills) for Class 21 of the 2 MA LMT *Artificial Intelligence* course at Adam Mickiewicz University. Single static HTML file, no build step.
 
-Optional video: As we continue evolving our chatbots towards agents, context management will become increasingly important for increasing the functionality of your system and maintaining its reliability. See a quick overview of one of the main challenges, context rotting. We dealt with it in a very rudimentary way today (by saving verbatim payloads) and there are better ways of dealing with it that you will encounter later (e.g. summarising chats into an actual 'memory' of key facts, just like apps such as ChatGPT do).  
+Same Memory + Skills + RAG drawers as the previous fork, with one new layer in the RAG drawer: **keyword retrieval (BM25) alongside the existing semantic retrieval, switchable live**. The pedagogical headline: *RAG isn't synonymous with vector databases—keyword search still wins for many queries.*
 
-link
+## Try it
 
-A reference fork of [`lmt-chatbot`](https://github.com/klodzikowski/lmt-chatbot) for Class 20 of the 2 MA LMT *Artificial Intelligence* course at Adam Mickiewicz University. Single static HTML file, no build step. Adds three layers on top of the Class 19 baseline:
+[klodzikowski.github.io/lmt-chatbot-rag](https://klodzikowski.github.io/lmt-chatbot-rag/). Paste your OpenAI key into Settings, then explore the four drawers: Settings, Memory, Skills, RAG.
 
-- **Memory.** Chat history persisted across sessions. Two backends: browser-local (`localStorage`) or hosted Supabase Postgres.
-- **Skills.** Structured custom instructions or domain know-how injected into the system prompt. Three presets plus a custom markdown textarea.
-- **RAG.** Two preset documents plus paste-your-own. Chunks, embeds, and retrieves the top-3 most similar passages before each reply.
+## RAG ≠ vector database
 
-**At a glance:**
+Two retrieval modes in the RAG drawer, side by side:
+
+| Mode | How it works | OpenAI calls | Wins when |
+| --- | --- | --- | --- |
+| **Semantic** | Embed the query → cosine-rank indexed chunks against the query vector | One embedding call per query (`text-embedding-3-small`, 1536-dim) | The query and the document say the same thing in different words |
+| **Keyword (BM25)** | Term frequency × inverse document frequency × length normalisation, all in vanilla JS | None | Exact-match queries: codes, proper nouns, acronyms, verbatim strings |
+
+Flip the radio in the RAG drawer to switch between them. Every retrieval-augmented reply shows a purple **`+N RAG chunks`** chip on its meta line. The assistant turn's metadata in **Detailed JSON** records `retrieved_context`, `retrieved_chunk_count`, and `retrieval_mode` per turn so students can see exactly what the orchestrator did.
+
+The 2026 production picture is **hybrid**—BM25 + dense vectors, sometimes with a learned sparse layer (SPLADE) in between. Elasticsearch, OpenSearch, Weaviate, Qdrant, Pinecone all ship hybrid out of the box. Pick your tool to fit the problem; vectors aren't the only answer.
+
+## At a glance
 
 | Component | OpenAI calls | Contribution to the system prompt |
 | --- | --- | --- |
 | **Memory** | None—`localStorage` (browser) or Supabase Postgres (cloud) | None directly; rehydrated chat history flows in via `messages` |
 | **Skills** | None—string concatenation only | Ticked markdown blocks, joined with `---` separators |
-| **RAG** | `text-embedding-3-small`—vectorises each chunk at index time, then the user query at chat time | Top-3 chunks (cosine-ranked) under a `# Retrieved context` header |
-| **Orchestrator** (`buildAugmentedSystemPrompt`) | None | Joins the three contributions with `---` and ships the assembled prompt to `/v1/chat/completions` |
+| **RAG (semantic)** | `text-embedding-3-small`—vectorises each chunk at index time, then the user query at chat time | Top-3 chunks (cosine-ranked) under a `# Retrieved context` header |
+| **RAG (keyword)** | None—BM25 in vanilla JS over the indexed chunks | Top-3 chunks (BM25-ranked) under the same header |
+| **Orchestrator** (`buildAugmentedSystemPrompt`) | None | Joins the contributions with `---` and ships the assembled prompt to `/v1/chat/completions` |
 
-## Try it
+## BM25 in 50 lines
 
-[klodzikowski.github.io/lmt-chatbot-skills](https://klodzikowski.github.io/lmt-chatbot-skills/). Paste your OpenAI key into Settings, then explore the four drawers: Settings, Memory, Skills, RAG.
+`bm25Rank(query, chunks)` in `index.html` is the whole implementation. Pseudo-Python:
 
-## Skills before RAG
+```
+for each chunk:
+    tokens   = chunk.lower().split_unicode_words()
+    chunk_len = len(tokens)
+    tf[t]    = how many times each query term appears in the chunk
 
-Modern context windows fit hundreds of pages of markdown. Reach for a skill before reaching for RAG. Skills are deterministic, version-controllable, free of retrieval-failure modes. RAG is the heavy hammer for cases where skills genuinely won't fit—huge corpora, content changing faster than you can edit a file, retrieval that varies per user.
+for each query term t:
+    df[t] = number of chunks containing t
+    idf   = log((N - df + 0.5) / (df + 0.5) + 1)
+    norm  = tf[t] * (k1 + 1) / (tf[t] + k1 * (1 - b + b * chunk_len / avg_len))
+    score += idf * norm
+```
 
-**Skills win when one curator owns the knowledge. RAG wins when the knowledge already exists across many documents and nobody is curating it.**
-
-As of 2026 the focus has shifted toward **skills**—Anthropic's Skills, OpenAI's Custom GPT knowledge files, Cursor's Rules. Different branding, identical shape: a markdown blob in the system prompt. A couple of years ago (2023–24) the default reflex was RAG-first. Both still ship in production.
+`k1 = 1.5` controls how quickly term frequency saturates (the 10th occurrence of a word matters less than the 1st). `b = 0.75` controls length normalisation (long docs would otherwise unfairly outrank short ones). Standard Robertson-Spärck Jones values.
 
 ## Memory
 
-Tick **Remember conversation between sessions** in the Memory drawer. **Local** writes the chat history JSON to `localStorage` under `lmt-chatbot-skills-history`. **Supabase** writes the same shape to a hosted Postgres `chat_memory` table; reload re-hydrates from whichever backend is active. Same JSON either way—the storage backend is interchangeable.
+Tick **Remember conversation between sessions** in the Memory drawer. **Local** writes the chat history JSON to `localStorage`. **Supabase** writes the same shape to a hosted Postgres `chat_memory` table; reload re-hydrates from whichever backend is active.
 
 ### Supabase setup
 
@@ -55,45 +72,41 @@ create table chat_memory (
 alter table chat_memory disable row level security;
 ```
 
-**Or Table Editor (UI)**—new table `chat_memory`; untick **Enable Row Level Security**; keep the pre-filled `id` (int8 identity) and `created_at` (timestamptz default `now()`); click **Add column** four times for `user_id` (text default `'demo'`), `role` (text), `content` (text), `payload` (jsonb). Save.
-
-Project Settings → API → copy the **Project URL** and the **`anon` public** key. Paste both into the Memory drawer after switching the backend to Supabase.
-
-The `anon` key is public by design—safe in client code. Access is gated by Row Level Security policies on the table; we disabled RLS for the class demo. In production you'd write a policy and keep RLS on.
+Project Settings → API → copy the **Project URL** and the **`anon` public** key. Paste both into the Memory drawer after switching the backend to Supabase. The `anon` key is public by design—safe in client code. Access is gated by Row Level Security policies; we disabled RLS for the class demo.
 
 ## Skills
 
-Three preset checkboxes—**Top-mark thesis** (sharp MA thesis advisor; Socratic), **Tight summariser** (one-line headline plus 3–7 bullets, never prose), **Stretch a deadline** (extension-request email structure)—plus a **Your skill (markdown)** textarea. Every ticked skill is concatenated into the system prompt with `---` separators on every reply. Ticked state persists in `localStorage` per preset.
+Three preset checkboxes—**Top-mark thesis** (sharp MA thesis advisor; Socratic), **Tight summariser** (one-line headline plus 3–7 bullets, never prose), **Stretch a deadline** (extension-request email structure)—plus a **Your skill (markdown)** textarea. Every ticked skill is concatenated into the system prompt with `---` separators on every reply.
 
-Drawer footer → **Simple JSON** → field `system_prompt_assembled` shows the actual string the model saw, with all active skills concatenated.
+Drawer footer → **Simple JSON** → field `system_prompt_assembled` shows the actual string the model saw.
 
 ## RAG
 
-Two preset documents (**Noam Chomsky—life and theory**; the fictional **Jabłoński-Żukowski Conjecture**) plus a paste textarea. **Index document** chunks the textarea at ~500 chars and embeds each via OpenAI's `text-embedding-3-small`. Append-mode—each click adds chunks to the existing index. **Clear index** wipes.
+Two preset documents (**Noam Chomsky—life and theory**; the fictional **Jabłoński-Żukowski Conjecture**) plus a paste textarea. **Index document** chunks the textarea at ~500 chars and embeds each via OpenAI's `text-embedding-3-small`—same indexed chunks serve both retrieval modes; only the ranking differs.
 
-Top-3 most similar chunks land in the system prompt before each chat call. Every retrieval-augmented reply shows a purple **`+N RAG chunks`** chip on its meta line.
-
-Drawer footer → **Detailed JSON** → assistant turn → `retrieved_context` (the actual injected passages) and `retrieved_chunk_count`. Per-turn, because retrieval varies by query.
+Append-mode—each Index click adds to the existing index. **Clear index** wipes.
 
 ## Reset behaviour
 
-- **Clear chat**—empties the screen only. Storage stays untouched (both `localStorage` and Supabase). Reload re-hydrates from whichever backend is active.
+- **Clear chat**—empties the screen only. Storage stays untouched (both `localStorage` and Supabase).
 - **Reset all**—wipes everything: chat, API key, system prompt, sliders, active skills, RAG index, `localStorage` history, AND the Supabase rows for `user_id = 'demo'`.
 
 ## Source map
 
 `index.html` is one file. Key entries in the `<script>` block:
 
-- `PRESET_SKILLS`, `PRESET_DOCS`—preset definitions, each `{id, name, blurb, content}`.
+- `PRESET_SKILLS`, `PRESET_DOCS`—preset definitions.
 - `getActiveSkillContent()`—concatenates ticked presets plus the custom textarea.
-- `buildAugmentedSystemPrompt(lastUserMessage)`—assembles `[user prompt] + [active skills] + [retrieved RAG context]` with `---` separators. Returns `{prompt, retrievedContext, retrievedChunkCount}` so the send flow can attach retrieval to the assistant turn.
-- `embed(text)`, `cosineSim(a, b)`, `retrieveContext(query, k=3)`—the RAG primitives.
+- `buildAugmentedSystemPrompt(lastUserMessage)`—assembles `[user prompt] + [active skills] + [retrieved chunks]` with `---` separators.
+- `embed(text)`, `cosineSim(a, b)`—the semantic primitives.
+- `bm25Tokenise(text)`, `bm25Rank(query, chunks)`—the keyword primitives. Pure JS, no deps.
+- `getRagMode()`, `retrieveContext(query, k=3)`—reads the radio, picks the path.
 - `saveHistoryToStorage()`, `saveHistoryToSupabase()`, `hydrateHistoryFromSupabase()`—the memory dispatch.
 
-Storage keys are namespaced `lmt-chatbot-skills-*` to avoid colliding with the canonical `lmt-chatbot` on the same `klodzikowski.github.io` origin.
+Storage keys are namespaced `lmt-chatbot-rag-*` to avoid colliding with the `lmt-chatbot-skills` and `lmt-chatbot` forks on the same `klodzikowski.github.io` origin.
 
 ## Use as homework reference
 
-Class 20 homework: point your AI coding assistant at this repo and ask it to add memory, skills, and RAG to your own Class 19 fork. Something like:
+Point your AI coding assistant at this repo and ask it to add the keyword/semantic toggle to your own fork. Example prompt:
 
-> *Add the persistent memory, skills, and RAG from `klodzikowski/lmt-chatbot-skills` to my chatbot, but keep my existing design.*
+> *Add a Semantic ↔ Keyword (BM25) toggle to the RAG section of my chatbot. Use the bm25Rank function from `klodzikowski/lmt-chatbot-rag/index.html` as the reference implementation.*

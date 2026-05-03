@@ -822,6 +822,26 @@
       }
       .supabase-fields { display: none; padding-top: .35rem; }
       .supabase-fields.visible { display: block; }
+
+      /* RAG retrieval-mode radio. Vertical so each option has room for
+         its own help-tip button without crowding the next. */
+      .rag-mode-radios {
+        display: flex;
+        flex-direction: column;
+        gap: .3rem;
+        padding: .15rem 0 .45rem;
+      }
+      .rag-mode-radios label {
+        font-size: .85rem;
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        cursor: pointer;
+      }
+      .rag-mode-radios .rag-mode-sub {
+        color: var(--fg-soft, var(--muted, #777));
+        font-size: .8rem;
+      }
     </style>
   </head>
   <body>
@@ -983,8 +1003,31 @@ Preset use cases (temperature · top-p):
         <details class="drawer-section">
           <summary>RAG</summary>
           <div class="drawer-section-body">
-            <p class="field-note" style="margin-top:.55rem">When a skill file isn't enough—too big, or you want retrieval to pick relevant chunks per query—paste a long document and click Index. Top-3 most similar chunks are prepended to the system prompt before each chat call.</p>
-            <p class="field-note" style="margin-top:.7rem;margin-bottom:.35rem;font-weight:600;color:var(--fg)">Try a preset:</p>
+            <p class="field-note" style="margin-top:.55rem">When a skill file isn't enough—too big, or you want retrieval to pick relevant chunks per query—paste a long document and click Index. Top-3 most relevant chunks are prepended to the system prompt before each chat call.</p>
+
+            <p class="field-note" style="margin-top:.7rem;margin-bottom:.2rem;font-weight:600;color:var(--fg)">Retrieval method:</p>
+            <div class="rag-mode-radios" id="rag-mode-radios">
+              <label>
+                <input type="radio" name="rag-mode" value="semantic" checked />
+                Semantic <span class="rag-mode-sub">(cosine on embeddings)</span>
+                <button type="button" class="help-tip wide" data-help="Embeds your query into a 1536-dim vector via OpenAI's text-embedding-3-small, then ranks indexed chunks by cosine similarity to that vector.
+
+Wins when the query and the document say the same thing in different words — meaning aligns even when vocabulary doesn't.
+
+Costs one OpenAI embedding call per query." aria-label="How semantic retrieval works">?</button>
+              </label>
+              <label>
+                <input type="radio" name="rag-mode" value="keyword" />
+                Keyword <span class="rag-mode-sub">(BM25)</span>
+                <button type="button" class="help-tip wide" data-help="Best Match 25 — a keyword ranking algorithm from the 1990s (Robertson and Spärck Jones). Still the default in Elasticsearch, OpenSearch, and Lucene.
+
+Scores each chunk by query-term frequency, weighted by how rare each word is across the index (inverse document frequency) and normalised for chunk length. Pure JS — no API call, no embedding model.
+
+Wins for exact-string queries, codes, proper nouns. The cleanest counter-example to the always-reach-for-vectors reflex." aria-label="How BM25 keyword retrieval works">?</button>
+              </label>
+            </div>
+
+            <p class="field-note" style="margin-top:.4rem;margin-bottom:.35rem;font-weight:600;color:var(--fg)">Try a preset:</p>
             <div id="preset-docs"></div>
             <div class="field">
               <div class="field-header">
@@ -1044,7 +1087,7 @@ Preset use cases (temperature · top-p):
 
       <footer>
         Static chatbot on GitHub Pages ·
-        <a href="https://github.com/klodzikowski/lmt-chatbot-skills" target="_blank" rel="noopener"
+        <a href="https://github.com/klodzikowski/lmt-chatbot-rag" target="_blank" rel="noopener"
           >source</a
         >
         ·
@@ -1167,26 +1210,27 @@ Preset use cases (temperature · top-p):
       // entry without showing up in JSON.stringify (for regenerate).
       const WRAP = Symbol("wrap");
       const KEYS = {
-        apiKey: "lmt-chatbot-skills-openai-key",
-        system: "lmt-chatbot-skills-system-prompt",
-        model: "lmt-chatbot-skills-model",
-        temperature: "lmt-chatbot-skills-temperature",
-        top_p: "lmt-chatbot-skills-top-p",
-        max_tokens: "lmt-chatbot-skills-max-tokens",
-        show_logprobs: "lmt-chatbot-skills-show-logprobs",
-        drawer_width: "lmt-chatbot-skills-drawer-width",
+        apiKey: "lmt-chatbot-rag-openai-key",
+        system: "lmt-chatbot-rag-system-prompt",
+        model: "lmt-chatbot-rag-model",
+        temperature: "lmt-chatbot-rag-temperature",
+        top_p: "lmt-chatbot-rag-top-p",
+        max_tokens: "lmt-chatbot-rag-max-tokens",
+        show_logprobs: "lmt-chatbot-rag-show-logprobs",
+        drawer_width: "lmt-chatbot-rag-drawer-width",
         // localStorage keys (separate from sessionStorage settings):
-        remember_conversation: "lmt-chatbot-skills-remember-conversation",
-        history: "lmt-chatbot-skills-history",
-        // Skills-edition extras:
-        skill: "lmt-chatbot-skills-skill",
-        skill_active_prefix: "lmt-chatbot-skills-skill-active-",
-        rag_doc: "lmt-chatbot-skills-rag-doc",
-        rag_index: "lmt-chatbot-skills-rag-index",
+        remember_conversation: "lmt-chatbot-rag-remember-conversation",
+        history: "lmt-chatbot-rag-history",
+        // RAG-edition extras:
+        skill: "lmt-chatbot-rag-skill",
+        skill_active_prefix: "lmt-chatbot-rag-skill-active-",
+        rag_doc: "lmt-chatbot-rag-rag-doc",
+        rag_index: "lmt-chatbot-rag-rag-index",
+        rag_mode: "lmt-chatbot-rag-rag-mode",
         // Memory backend selection + Supabase credentials:
-        memory_backend: "lmt-chatbot-skills-memory-backend",
-        supabase_url: "lmt-chatbot-skills-supabase-url",
-        supabase_key: "lmt-chatbot-skills-supabase-key",
+        memory_backend: "lmt-chatbot-rag-memory-backend",
+        supabase_url: "lmt-chatbot-rag-supabase-url",
+        supabase_key: "lmt-chatbot-rag-supabase-key",
       };
 
       // Preset skills shipped with the fork. Tick one or more to inject into
@@ -1333,6 +1377,17 @@ The conjecture was first presented at the 2024 informal Poznań Cognitive-Mathem
       let ragIndex = [];
       try { ragIndex = JSON.parse(localStorage.getItem(KEYS.rag_index) || "[]"); }
       catch { ragIndex = []; }
+
+      // Retrieval-mode radio (semantic | keyword). Default to semantic.
+      // Persists in localStorage so the choice survives reloads.
+      const ragModeRadios = document.querySelectorAll('input[name="rag-mode"]');
+      const savedRagMode = localStorage.getItem(KEYS.rag_mode) || "semantic";
+      for (const r of ragModeRadios) r.checked = (r.value === savedRagMode);
+      for (const r of ragModeRadios) {
+        r.addEventListener("change", () => {
+          if (r.checked) localStorage.setItem(KEYS.rag_mode, r.value);
+        });
+      }
 
       // Hydrate controls from sessionStorage.
       keyInput.value = sessionStorage.getItem(KEYS.apiKey) || "";
@@ -1694,6 +1749,59 @@ The conjecture was first presented at the 2024 informal Poznań Cognitive-Mathem
         return dot / (Math.sqrt(na) * Math.sqrt(nb));
       }
 
+      // BM25 keyword retrieval. Term-frequency × inverse-document-frequency
+      // × length-normalisation. Standard Robertson-Spärck Jones formula:
+      //   IDF(t) = log((N - df(t) + 0.5) / (df(t) + 0.5) + 1)
+      //   tf-norm = f * (k1 + 1) / (f + k1 * (1 - b + b * |chunk| / avgLen))
+      //   score(chunk, query) = Σ over query terms t of IDF(t) × tf-norm(t)
+      // Pure JS over the already-indexed chunk text. No embedding call, no
+      // network. Pedagogical foil to the semantic path.
+      const BM25_K1 = 1.5;  // tf saturation (typical 1.2–2.0)
+      const BM25_B = 0.75;  // length-normalisation weight (0 = none, 1 = full)
+
+      function bm25Tokenise(text) {
+        // Letters + digits, lowercased; everything else is a separator.
+        // Unicode-aware so Polish names like "Jabłoński" tokenise cleanly.
+        return (text.toLowerCase().match(/[\p{L}\p{N}]+/gu) || []);
+      }
+
+      function bm25Rank(query, chunks) {
+        // chunks: [{ text, embedding? }]
+        // returns: [{ idx, score }] sorted descending
+        if (!chunks.length) return [];
+        const tokenised = chunks.map((c) => bm25Tokenise(c.text));
+        const lens = tokenised.map((t) => t.length);
+        const N = chunks.length;
+        const avgLen = lens.reduce((s, l) => s + l, 0) / Math.max(1, N);
+
+        // Document frequency per term across the index.
+        const df = new Map();
+        for (const tokens of tokenised) {
+          const seen = new Set(tokens);
+          for (const t of seen) df.set(t, (df.get(t) || 0) + 1);
+        }
+
+        const queryTerms = [...new Set(bm25Tokenise(query))];
+        return tokenised
+          .map((tokens, i) => {
+            const tf = new Map();
+            for (const t of tokens) tf.set(t, (tf.get(t) || 0) + 1);
+            let score = 0;
+            for (const q of queryTerms) {
+              const f = tf.get(q) || 0;
+              if (!f) continue;
+              const dfq = df.get(q) || 0;
+              const idf = Math.log((N - dfq + 0.5) / (dfq + 0.5) + 1);
+              const norm =
+                (f * (BM25_K1 + 1)) /
+                (f + BM25_K1 * (1 - BM25_B + (BM25_B * lens[i]) / avgLen));
+              score += idf * norm;
+            }
+            return { idx: i, score };
+          })
+          .sort((a, b) => b.score - a.score);
+      }
+
       // Index button: APPEND mode. Each click adds the textarea content as
       // new chunks alongside whatever's already in the index. Lets students
       // build a multi-document index by pasting (or uploading) a few sources
@@ -1743,7 +1851,19 @@ The conjecture was first presented at the 2024 informal Poznań Cognitive-Mathem
 
       async function retrieveContext(query, k = 3) {
         if (!ragIndex.length || !query) return "";
+        const mode = getRagMode();
         try {
+          if (mode === "keyword") {
+            // Pure JS, no API call. Drop zero-score (no-overlap) chunks so a
+            // query with no matching terms returns nothing rather than the
+            // top-k arbitrary chunks.
+            return bm25Rank(query, ragIndex)
+              .filter((r) => r.score > 0)
+              .slice(0, k)
+              .map((r) => ragIndex[r.idx].text)
+              .join("\n\n---\n\n");
+          }
+          // Semantic: embed the query, cosine-rank.
           const q = await embed(query);
           return ragIndex
             .map((c) => ({ text: c.text, score: cosineSim(c.embedding, q) }))
@@ -1754,6 +1874,11 @@ The conjecture was first presented at the 2024 informal Poznań Cognitive-Mathem
         } catch {
           return "";
         }
+      }
+
+      function getRagMode() {
+        const checked = document.querySelector('input[name="rag-mode"]:checked');
+        return checked ? checked.value : "semantic";
       }
 
       // Concatenate every active skill (ticked presets + the custom textarea)
@@ -1783,7 +1908,9 @@ The conjecture was first presented at the 2024 informal Poznań Cognitive-Mathem
         const skills = getActiveSkillContent();
         let retrievedContext = "";
         let retrievedChunkCount = 0;
+        let retrievedMode = "";
         if (lastUserMessage && ragIndex.length) {
+          retrievedMode = getRagMode();
           retrievedContext = await retrieveContext(lastUserMessage);
           if (retrievedContext) {
             retrievedChunkCount = retrievedContext.split("\n\n---\n\n").length;
@@ -1800,6 +1927,7 @@ The conjecture was first presented at the 2024 informal Poznań Cognitive-Mathem
           prompt: parts.join("\n\n---\n\n"),
           retrievedContext,
           retrievedChunkCount,
+          retrievedMode,
         };
       }
 
@@ -1997,7 +2125,7 @@ The conjecture was first presented at the 2024 informal Poznań Cognitive-Mathem
           // RAG context for the latest user message. Falls back to the
           // base system prompt if neither extension is in use.
           const lastUserMessage = [...history].reverse().find((m) => m.role === "user")?.content || "";
-          const { prompt: augmentedSystem, retrievedContext, retrievedChunkCount } =
+          const { prompt: augmentedSystem, retrievedContext, retrievedChunkCount, retrievedMode } =
             await buildAugmentedSystemPrompt(lastUserMessage);
           const { reply, usage, finish_reason, model_snapshot, id, logprobs } =
             await callOpenAI({
@@ -2033,6 +2161,7 @@ The conjecture was first presented at the 2024 informal Poznań Cognitive-Mathem
             logprobs,
             retrieved_context: retrievedContext || null,
             retrieved_chunk_count: retrievedChunkCount || 0,
+            retrieval_mode: retrievedMode || null,
           };
           entry[WRAP] = loading.wrap;
           history.push(entry);
