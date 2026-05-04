@@ -23,9 +23,9 @@ In this app we pre-select skills (you tick a checkbox) so the demo is easy to fo
 
 ## Task 2—Keyword RAG (index + retrieve)
 
-> **Skills before RAG.** When a markdown skill fits, prefer it—deterministic, version-controllable, no retrieval failures. Reach for RAG when the knowledge is too big to paste, or changes faster than you can edit a file.
-
 RAG (retrieval-augmented generation) means: pull relevant passages from an indexed document into the system prompt before each reply. First we index. Then we query.
+
+**Skills before RAG.** When a markdown skill fits, prefer it—deterministic, version-controllable, no retrieval failures. Reach for RAG when the knowledge is too big to paste, or changes faster than you can edit a file.
 
 **Baseline first.** Before giving the bot any document, see what it already knows. Send: *"What is the Anglistyka Effect?"* — the term comes from a fictional paper we're about to load, so the model has no training data on it. It'll either confess ignorance or hallucinate something plausible. That's the baseline — no retrieval, no grounding.
 
