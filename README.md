@@ -51,7 +51,7 @@ Older algorithm, simpler logic. Match query words to chunk words, weighted by ra
 
 What this proves: **keyword retrieval matches by exact string**. No embeddings, no API call at chat time—just term frequency × inverse document frequency × length normalisation in ~50 lines of vanilla JS. The algorithm is from the 1990s (Robertson and Spärck Jones), still the default in Elasticsearch and OpenSearch.
 
-Now try a paraphrase that shares no content words with the docs: *"Why might gifted polyglots blunder addition?"*—same idea as the Anglistyka Effect, expressed in synonyms. No `+N RAG chunks` chip; the model falls back to general knowledge and gives a generic answer about cognitive load. That's the keyword limitation: BM25 only matches what's lexically present.
+Now try a paraphrase that shares no content words with the docs: *"Why might gifted polyglots blunder addition?"*—same idea as *affective arithmetic*, expressed in synonyms. No `+N RAG chunks` chip; the model falls back to general knowledge and gives a generic answer about cognitive load. That's the keyword limitation: BM25 only matches what's lexically present.
 
 ## Task 4—Vector retrieval (semantic embeddings)
 
@@ -68,7 +68,7 @@ What this proves: **semantic retrieval matches by meaning**. The query embeds in
 
 ## Task 5—Compare side by side
 
-Same indexed document. Same chunks. Different ranking. Run each query in **both** modes and watch the meta line:
+Same indexed documents. Same chunks. Different ranking. Run each query in **both** modes and watch the meta line:
 
 | Query | Keyword (BM25) | Semantic (vectors) |
 | --- | --- | --- |
