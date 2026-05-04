@@ -31,7 +31,7 @@ RAG (retrieval-augmented generation) means: pull relevant passages from an index
 
 ### 2.1 Index
 
-Indexing in keyword mode is free—no OpenAI call, no embedding model. The green ✓ on a document button means the example is currently queryable in your retrieval mode without further work; switching modes can drop the ✓ because semantic mode needs embeddings keyword mode doesn't compute.
+Indexing in keyword mode is free—no OpenAI call, no embedding model. The green ✓ on a document button means the example is queryable in your current retrieval mode. Switching modes can drop it: semantic needs embeddings, keyword doesn't compute them.
 
 1. Open the **Retrieval-Augmented Generation (RAG)** drawer. Set **Retrieval method** to **Keyword (BM25)**.
 2. Click the **Jabłoński-Żukowski Conjecture (fake Wikipedia-style entry, 2025)** example → **Index document**. The document button turns green ✓. Status reads *"Added N chunks (keyword mode — no embeddings)."* Pure JavaScript chunking, no API call.
@@ -42,7 +42,7 @@ Indexing in keyword mode is free—no OpenAI call, no embedding model. The green
 Match query words to chunk words, weighted by rarity (rare words count more) and chunk length (long chunks otherwise unfairly outrank short ones). From the 1990s but still wins for exact-string queries—codes, proper nouns, acronyms (the `?` next to the radio explains why).
 
 1. Send: *"What is the Anglistyka Effect?"*—this query contains a verbatim string from the doc.
-2. The reply should answer correctly. The meta line should show `+3 RAG chunks`—top-3 by BM25 score, prepended to the system prompt.
+2. The reply should answer correctly. The meta line shows a `+N RAG chunks` tag (here, `+2`—BM25 returns up to top-3, dropping any chunk with no matching terms). Hover the tag to see the actual passages injected.
 3. Drawer footer → **Detailed JSON**. Find the assistant turn → `retrieved_context` (the actual passages injected) and `retrieval_mode` should say `"keyword"`.
 
 What this proves: **keyword retrieval matches by exact string**. No embeddings, no API call at chat time—just term frequency × inverse document frequency × length normalisation in ~50 lines of vanilla JS. The algorithm is from the 1990s (Robertson and Spärck Jones), still the default in Elasticsearch and OpenSearch.
@@ -69,7 +69,7 @@ Same indexed documents. Same chunks. Different ranking. Run each query in **both
 | --- | --- | --- |
 | *What is the Anglistyka Effect?* | works (faster, no API call) | works |
 | *Why might gifted polyglots blunder addition?* | fails—zero shared content words | works—paraphrase catches the meaning |
-| *Define JZCI* | acronym matches, but the 500-char chunk split hides the expansion ("Cognitive Index" lands in the previous chunk)—reply often says "not defined". Chunking artefact, not an algorithm one. | works—pulls in the surrounding context, gives the full expansion |
+| *Define JZCI* | acronym matches, but the 500-char chunk split puts "Cognitive Index" in the previous chunk—the model may not recover the expansion. Chunking artefact, not an algorithm one. | works—pulls in the surrounding chunk too, so the expansion is reliable |
 | *Tell me about exam-week arithmetic* | works—both terms in docs | works—same |
 
 What this proves: **neither mode dominates**. Production systems combine both—keyword for verbatim, semantic for paraphrase, weight the scores, ship. That's "hybrid search."
