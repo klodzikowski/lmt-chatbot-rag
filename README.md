@@ -31,7 +31,7 @@ RAG (retrieval-augmented generation) means: pull relevant passages from an index
 
 ### 2.1 Index
 
-Indexing in keyword mode is free—no OpenAI call, no embedding model. Set up:
+Indexing in keyword mode is free—no OpenAI call, no embedding model. The green ✓ on a document button means the example is currently queryable in your retrieval mode without further work; switching modes can drop the ✓ because semantic mode needs embeddings keyword mode doesn't compute.
 
 1. Open the **Retrieval-Augmented Generation (RAG)** drawer. Set **Retrieval method** to **Keyword (BM25)**.
 2. Click the **Jabłoński-Żukowski Conjecture (fake Wikipedia-style entry, 2025)** example → **Index document**. The document button turns green ✓. Status reads *"Added N chunks (keyword mode — no embeddings)."* Pure JavaScript chunking, no API call.
@@ -47,7 +47,7 @@ Match query words to chunk words, weighted by rarity (rare words count more) and
 
 What this proves: **keyword retrieval matches by exact string**. No embeddings, no API call at chat time—just term frequency × inverse document frequency × length normalisation in ~50 lines of vanilla JS. The algorithm is from the 1990s (Robertson and Spärck Jones), still the default in Elasticsearch and OpenSearch.
 
-Now try a paraphrase that shares no content words with the docs: *"Why might gifted polyglots blunder addition?"*—same idea as *affective arithmetic*, expressed in synonyms. No `+N RAG chunks` tag on the meta line; the model falls back to general knowledge and gives a generic answer about cognitive load. That's the keyword limitation: BM25 only matches what's lexically present. Vector retrieval comes next.
+Now try a paraphrase that shares no content words with the docs: *"Why might gifted polyglots blunder addition?"*—same idea as *affective arithmetic*, expressed in synonyms. No `+N RAG chunks` tag on the meta line; the model falls back to general knowledge and gives a generic answer about cognitive load. That's the keyword limitation: BM25 only matches what's lexically present.
 
 ## Task 3—Switch to vector retrieval (semantic embeddings)
 
@@ -69,7 +69,7 @@ Same indexed documents. Same chunks. Different ranking. Run each query in **both
 | --- | --- | --- |
 | *What is the Anglistyka Effect?* | works (faster, no API call) | works |
 | *Why might gifted polyglots blunder addition?* | fails—zero shared content words | works—paraphrase catches the meaning |
-| *Define JZCI* | acronym matches, but the 500-char chunk split hides the expansion ("Cognitive Index" lands in the previous chunk)—reply often says "not defined" | works—pulls in the surrounding context, gives the full expansion |
+| *Define JZCI* | acronym matches, but the 500-char chunk split hides the expansion ("Cognitive Index" lands in the previous chunk)—reply often says "not defined". Chunking artefact, not an algorithm one. | works—pulls in the surrounding context, gives the full expansion |
 | *Tell me about exam-week arithmetic* | works—both terms in docs | works—same |
 
 What this proves: **neither mode dominates**. Production systems combine both—keyword for verbatim, semantic for paraphrase, weight the scores, ship. That's "hybrid search."
@@ -138,5 +138,7 @@ for each query term t:
 ```
 
 `k1 = 1.5` controls how quickly term frequency saturates (the 10th occurrence of a word matters less than the 1st). `b = 0.75` controls length normalisation. Standard Robertson-Spärck Jones values, the default in Elasticsearch and OpenSearch.
+
+A short stop-word list (the / of / at / what / which / etc.) is dropped from the query before scoring—standard tokeniser hygiene that production keyword search runs by default. Without it, common words carry small but non-zero IDF residue and produce noisy `+N RAG chunks` tags on queries that otherwise have no overlap with the indexed text. Documents are never filtered.
 
 Storage keys are namespaced `lmt-chatbot-rag-*` to avoid colliding with the `lmt-chatbot-skills` and `lmt-chatbot` forks on the same `klodzikowski.github.io` origin.

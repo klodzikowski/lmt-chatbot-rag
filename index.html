@@ -148,7 +148,9 @@
 
       /* When RAG retrieval contributed chunks to the system prompt for a
          specific reply, surface "+N RAG chunks" as a chip on the meta line.
-         Distinct colour from the green cache flag so they don't blend. */
+         Distinct colour from the green cache flag so they don't blend.
+         When data-rag-text is present, hover reveals the actual chunks
+         that were injected — a per-turn inspection without exporting JSON. */
       .msg-meta .rag-flag {
         background: rgba(168, 85, 247, .18);
         border: 1px solid rgba(168, 85, 247, .45);
@@ -156,6 +158,42 @@
         padding: 0 .35rem;
         border-radius: 4px;
         font-weight: 500;
+      }
+      .msg-meta .rag-flag[data-rag-text] {
+        position: relative;
+        cursor: help;
+      }
+      .msg-meta .rag-flag[data-rag-text]::after {
+        content: attr(data-rag-text);
+        position: absolute;
+        top: calc(100% + .4rem);
+        right: 0;
+        width: max-content;
+        max-width: 480px;
+        max-height: 320px;
+        overflow-y: auto;
+        padding: .55rem .7rem;
+        background: var(--surface-2);
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        color: var(--fg);
+        font-family: inherit;
+        font-size: .72rem;
+        font-weight: 400;
+        line-height: 1.5;
+        text-align: left;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, .45);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 120ms ease;
+        z-index: 25;
+      }
+      .msg-meta .rag-flag[data-rag-text]:hover::after,
+      .msg-meta .rag-flag[data-rag-text]:focus-visible::after {
+        opacity: 1;
+        pointer-events: auto;
       }
 
       /* Action chips (copy, regenerate) sit below the assistant meta line. */
@@ -1638,7 +1676,7 @@ An earlier draft reportedly circulated only among the authors and a handful of e
               tokensOut += Math.max(0, outTok);
               tokensCached += cachedTok;
               costTotal += cost;
-              appendMeta(wrap.wrap, inTok, outTok, reasoningTok, cachedTok, cost, entry.retrieved_chunk_count || 0);
+              appendMeta(wrap.wrap, inTok, outTok, reasoningTok, cachedTok, cost, entry.retrieved_chunk_count || 0, entry.retrieved_context || "");
               appendActionChips(wrap.wrap, entry.content);
               prevPromptTokens = inTok;
               prevCompletionTokens = Math.max(0, outTok);
@@ -1884,6 +1922,22 @@ An earlier draft reportedly circulated only among the authors and a handful of e
         return (text.toLowerCase().match(/[\p{L}\p{N}]+/gu) || []);
       }
 
+      // Standard short English stopwords. Dropped from queries before BM25
+      // scoring — not from documents, just from the query side. Without this,
+      // common words like "the" / "what" / "at" carry small but non-zero IDF
+      // residue and produce noisy +N RAG chunks tags on otherwise-empty
+      // queries, which dilutes the "BM25 only matches what's lexically
+      // present" lesson. Production keyword search does this routinely.
+      const BM25_STOPWORDS = new Set([
+        "a", "an", "and", "are", "as", "at", "be", "but", "by", "did",
+        "do", "does", "for", "from", "had", "has", "have", "he", "her",
+        "hers", "him", "his", "how", "i", "if", "in", "is", "it", "its",
+        "may", "me", "might", "my", "of", "on", "or", "she", "should",
+        "so", "some", "than", "that", "the", "their", "them", "they",
+        "this", "to", "was", "we", "were", "what", "when", "where",
+        "which", "who", "why", "will", "with", "would", "you", "your"
+      ]);
+
       function bm25Rank(query, chunks) {
         // chunks: [{ text, embedding? }]
         // returns: [{ idx, score }] sorted descending
@@ -1903,7 +1957,8 @@ An earlier draft reportedly circulated only among the authors and a handful of e
           for (const t of seen) df.set(t, (df.get(t) || 0) + 1);
         }
 
-        const queryTerms = [...new Set(bm25Tokenise(query))];
+        const queryTerms = [...new Set(bm25Tokenise(query))]
+          .filter((t) => !BM25_STOPWORDS.has(t));
         return tokenised
           .map((tokens, i) => {
             // Term frequency for THIS chunk: how many times each query term
@@ -2354,7 +2409,7 @@ An earlier draft reportedly circulated only among the authors and a handful of e
               appendUserMeta(userBubble.wrap, userTurnTokens, isFirstTurn);
             }
 
-            appendMeta(loading.wrap, inTok, outTok, reasoningTok, cachedTok, cost, retrievedChunkCount);
+            appendMeta(loading.wrap, inTok, outTok, reasoningTok, cachedTok, cost, retrievedChunkCount, retrievedContext || "");
             appendActionChips(loading.wrap, reply);
 
             prevPromptTokens = inTok;
@@ -2818,13 +2873,13 @@ An earlier draft reportedly circulated only among the authors and a handful of e
         wrap.appendChild(meta);
       }
 
-      function appendMeta(wrap, inTok, outTok, reasoningTok, cachedTok, cost, ragChunks) {
+      function appendMeta(wrap, inTok, outTok, reasoningTok, cachedTok, cost, ragChunks, ragText) {
         const meta = document.createElement("div");
         meta.className = "msg-meta";
         const bits = [];
         if (reasoningTok) bits.push("'reasoning' tokens are the model's hidden chain-of-thought, billed as output");
         if (cachedTok) bits.push("'cached' tokens are prompt tokens that hit OpenAI's automatic prompt cache, billed at a 50% discount");
-        if (ragChunks) bits.push(`+${ragChunks} RAG chunk(s) means the top ${ragChunks} most-similar passages from your indexed documents were prepended to the system prompt for this reply (see Detailed JSON for the exact text)`);
+        if (ragChunks) bits.push(`+${ragChunks} RAG chunk(s) means the top ${ragChunks} most-similar passages from your indexed documents were prepended to the system prompt for this reply — hover the chip to read them, or open Detailed JSON for the full string`);
         meta.title = bits.length
           ? `Tokens and cost for this reply. ${bits.join(". ")}.`
           : "Tokens and cost for this single reply";
@@ -2836,12 +2891,18 @@ An earlier draft reportedly circulated only among the authors and a handful of e
           ? `${out} tokens out (${reasoningTok.toLocaleString()} reasoning)`
           : `${out} tokens out`;
         const ragSegment = ragChunks
-          ? ` · <span class="rag-flag">+${ragChunks} RAG chunk${ragChunks === 1 ? "" : "s"}</span>`
+          ? ` · <span class="rag-flag" tabindex="0">+${ragChunks} RAG chunk${ragChunks === 1 ? "" : "s"}</span>`
           : "";
         meta.innerHTML =
           `${inSegment} · ${outSegment} · ` +
           `<span class="cost">${formatCost(cost)}</span>` +
           ragSegment;
+        // Per-turn chunk preview: hover/focus the chip to see the actual
+        // passages injected for this reply. Saves a Detailed JSON round-trip.
+        if (ragChunks && ragText) {
+          const ragEl = meta.querySelector(".rag-flag");
+          if (ragEl) ragEl.dataset.ragText = ragText;
+        }
         wrap.appendChild(meta);
       }
 
