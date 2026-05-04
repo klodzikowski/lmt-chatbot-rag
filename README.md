@@ -1,12 +1,14 @@
 # LMT Chatbot #3 (RAG)
 
+## Intro
+
 A reference fork of [`lmt-chatbot-skills`](https://github.com/klodzikowski/lmt-chatbot-skills) for Class 21 of the 2 MA LMT *Artificial Intelligence* course at Adam Mickiewicz University. Adds two layers on top of the chatbot baseline: **skills** (markdown blobs the bot summons on demand) and **RAG** (retrieval from an indexed document), with two retrieval algorithms side-by-side—keyword (BM25) and vector (semantic embeddings).
 
 **Skills before RAG.** When a markdown skill fits, prefer it—deterministic, version-controllable, no retrieval failures. Reach for RAG when the knowledge is too big to paste, or changes faster than you can edit a file.
 
 **RAG ≠ vector databases.** The production default today is hybrid search: keyword retrieval (BM25, used in Elasticsearch, OpenSearch, Lucene) combined with dense vector search, sometimes with a learned sparse layer (SPLADE) in between. BM25 is from the 1990s but still wins for exact-string queries—codes, proper nouns, acronyms. The walkthrough below covers both: keyword first, vectors second.
 
-**Try it:** [klodzikowski.github.io/lmt-chatbot-rag](https://klodzikowski.github.io/lmt-chatbot-rag/). Same UI as the previous fork; the app prompts for your OpenAI key on first use. New URL means fresh storage—re-enter the key even if you'd set it up before.
+**Try it:** [klodzikowski.github.io/lmt-chatbot-rag](https://klodzikowski.github.io/lmt-chatbot-rag/).
 
 ## Task 1—Skills
 
