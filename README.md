@@ -27,11 +27,11 @@ RAG (retrieval-augmented generation) means: pull relevant passages from an index
 
 **Baseline first.** Before giving the bot any document, see what it already knows. Send: *"What is the Anglistyka Effect?"* — the term comes from a fictional paper we're about to load, so the model has no training data on it. It'll either confess ignorance or hallucinate something plausible. That's the baseline — no retrieval, no grounding.
 
-Now feed it the document:
+Now feed it some documents.
 
 1. Open the **RAG** drawer.
-2. Click the **Jabłoński-Żukowski Conjecture (made-up)** preset button. The textarea fills with the fictional paper.
-3. Click **Index document**. Status counts "Embedding chunk 1 of N…" then "Added N chunks. N total in the index."
+2. Click the **Jabłoński-Żukowski Conjecture (made-up)** preset button. The textarea fills with the fictional paper. Click **Index document**. Status counts "Embedding chunk 1 of N…" then "Added N chunks."
+3. Click the **Anglistyka Department Spring Review (made-up)** preset—a companion piece that paraphrases the same ideas in different words and adds dates, departmental reception, and follow-up plans. Click **Index document** again. The chunks accumulate (append mode); the index now spans two related docs.
 
 Each chunk is embedded once via OpenAI's `text-embedding-3-small`. The same indexed chunks serve **both** retrieval algorithms below—only the ranking differs.
 
@@ -80,13 +80,6 @@ What this proves: **neither mode dominates**. Production systems combine both—
 - **Embeddings call returns 429.** Rate limit. Wait 30 seconds and retry, or chunk less aggressively (longer, fewer chunks).
 - **Keyword mode returns no `+N RAG chunks` chip.** Your query has no words in common with the indexed text. Try a different phrasing, or switch to semantic.
 - **Switching modes mid-conversation gives different answers to the same question.** That's the point—different retrieval, different evidence reaches the model.
-- **Indexer says "Embedding chunk X of Y" even when in keyword mode.** Indexing always embeds, so you can flip back to semantic for free. The mode toggle only changes ranking at chat time.
-
-## Use as homework reference
-
-Point your AI coding assistant at this repo and ask it to add the keyword/semantic toggle to your own fork. Example prompt:
-
-> *Add a Semantic / Keyword (BM25) retrieval toggle to the RAG section of my chatbot. Use the bm25Rank function from `klodzikowski/lmt-chatbot-rag/index.html` as the reference implementation.*
 
 ---
 
