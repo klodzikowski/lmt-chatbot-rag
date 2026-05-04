@@ -27,19 +27,19 @@ RAG (retrieval-augmented generation) means: pull relevant passages from an index
 
 **Baseline first.** Before giving the bot any document, see what it already knows. Send: *"What is the Anglistyka Effect?"* — the term comes from a fictional paper we're about to load, so the model has no training data on it. It'll either confess ignorance or hallucinate something plausible. That's the baseline — no retrieval, no grounding.
 
-Now feed it some documents.
+Now feed it some documents. To see how the two retrieval modes differ at *index time*, set the mode to keyword first—indexing in keyword mode is free (no OpenAI call, no embedding).
 
-1. Open the **RAG** drawer.
-2. Click the **Jabłoński-Żukowski Conjecture (made-up)** preset button. The textarea fills with the fictional paper. Click **Index document**. Status counts "Embedding chunk 1 of N…" then "Added N chunks."
-3. Click the **Anglistyka Department Spring Review (made-up)** preset—a companion piece that paraphrases the same ideas in different words and adds dates, departmental reception, and follow-up plans. Click **Index document** again. The chunks accumulate (append mode); the index now spans two related docs.
+1. Open the **RAG** drawer. Set **Retrieval method** to **Keyword (BM25)**.
+2. Click the **Jabłoński-Żukowski Conjecture (made-up)** preset → **Index document**. Status reads *"Added N chunks (keyword mode — no embeddings)."* Pure JavaScript chunking, no API call.
+3. Click the **Anglistyka Department Spring Review (made-up)** preset—a companion piece that paraphrases the same ideas in different words and adds dates, departmental reception, and follow-up plans. **Index document** again. Chunks accumulate (append mode); the index now spans two related docs.
 
-Each chunk is embedded once via OpenAI's `text-embedding-3-small`. The same indexed chunks serve **both** retrieval algorithms below—only the ranking differs.
+The cost difference between modes will show up when we switch to semantic in Task 4.
 
 ## Task 3—Keyword retrieval (BM25)
 
 Older algorithm, simpler logic. Match query words to chunk words, weighted by rarity (rare words count more) and chunk length (long chunks otherwise unfairly outrank short ones).
 
-1. In the RAG drawer, set **Retrieval method** to **Keyword (BM25)**.
+1. The **Retrieval method** radio should still be on **Keyword (BM25)** from Task 2.
 2. Click the **?** next to it for a one-paragraph explanation. Read it.
 3. Send: *"What is the Anglistyka Effect?"*—this query contains a verbatim string from the doc.
 4. The reply should answer correctly. The meta line should show `+1 RAG chunks` (purple chip).
@@ -56,10 +56,11 @@ Newer algorithm, abstract logic. Convert the query and each chunk into a high-di
 1. Switch the **Retrieval method** radio to **Semantic (cosine on embeddings)**.
 2. Click the **?** for a paragraph on how it works.
 3. Send the same query that just failed in keyword mode: *"Which group bends reality the most?"*
-4. This time the reply should pull the answer from the indexed chunks. Meta line shows `+1 RAG chunks`.
-5. Detailed JSON → `retrieval_mode` should now say `"semantic"`.
+4. **First-time cost.** Because we indexed in keyword mode (text only, no embeddings), the app now embeds each chunk on the fly before ranking. Status shows *"Lazy-embedding chunk X of Y…"* once. Future semantic queries skip this step—the embeddings are now cached.
+5. The reply should pull the answer from the indexed chunks. Meta line shows `+1 RAG chunks`.
+6. Detailed JSON → `retrieval_mode` should now say `"semantic"`.
 
-What this proves: **semantic retrieval matches by meaning**. The query embeds into a 1536-dimensional vector via OpenAI's `text-embedding-3-small`, and cosine ranking surfaces the chunk about the Universe-Bending Lemma even though the query doesn't share a word with it. One OpenAI embedding call per query.
+What this proves: **semantic retrieval matches by meaning**. The query embeds into a 1536-dimensional vector via OpenAI's `text-embedding-3-small`, and cosine ranking surfaces the chunk about the Universe-Bending Lemma even though the query doesn't share a word with it. One OpenAI embedding call per query (plus the one-time backfill at the moment of mode-switching).
 
 ## Task 5—Compare side by side
 
