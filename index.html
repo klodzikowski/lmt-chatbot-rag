@@ -1445,6 +1445,9 @@ An earlier draft reportedly circulated only among the authors and a handful of e
       for (const r of ragModeRadios) {
         r.addEventListener("change", () => {
           if (r.checked) localStorage.setItem(KEYS.rag_mode, r.value);
+          // Chip readiness depends on current mode (semantic needs
+          // embeddings, keyword always works on text).
+          updatePresetChipState();
         });
       }
 
@@ -1539,16 +1542,31 @@ An earlier draft reportedly circulated only among the authors and a handful of e
         updatePresetChipState();
       }
 
-      // Mark each preset chip with a green ✓ if any indexed chunk was
-      // sourced from it. Source is set on each chunk at index time
-      // (see the ragIndexBtn handler).
+      // Mark each preset chip with a green ✓ when its content is queryable
+      // in the *current* retrieval mode without further work. Mode-aware:
+      //   - Keyword: any indexed chunk is queryable (text is always present).
+      //   - Semantic: every chunk for the preset must have an embedding.
+      // So keyword→semantic switching un-greens preset chips that lack
+      // embeddings, then re-greens them after lazy backfill on first query.
+      // Semantic→keyword keeps them green (vectorized chunks have text).
       function updatePresetChipState() {
         if (!presetDocsContainer) return;
-        const indexedIds = new Set(
-          ragIndex.map((c) => c.source).filter((s) => s && s !== "custom")
-        );
+        const mode = getRagMode();
+        const groups = new Map();
+        for (const c of ragIndex) {
+          if (!c.source || c.source === "custom") continue;
+          if (!groups.has(c.source)) groups.set(c.source, []);
+          groups.get(c.source).push(c);
+        }
+        const readyIds = new Set();
+        for (const [src, chunks] of groups) {
+          const ready = mode === "keyword"
+            ? true
+            : chunks.every((c) => c.embedding);
+          if (ready) readyIds.add(src);
+        }
         for (const btn of presetDocsContainer.querySelectorAll("[data-doc-id]")) {
-          btn.classList.toggle("indexed", indexedIds.has(btn.dataset.docId));
+          btn.classList.toggle("indexed", readyIds.has(btn.dataset.docId));
         }
       }
       renderPresetDocs();
@@ -1978,6 +1996,9 @@ An earlier draft reportedly circulated only among the authors and a handful of e
             }
             try { localStorage.setItem(KEYS.rag_index, JSON.stringify(ragIndex)); } catch {}
             ragStatus.textContent = `Backfilled ${missing.length} embedding(s). ${ragIndex.length} chunk(s) ready for either mode.`;
+            // Chunks gained embeddings—preset chips that were un-green
+            // in semantic mode now go green again.
+            updatePresetChipState();
           }
           // Semantic: embed the query, cosine-rank.
           const q = await embed(query);
