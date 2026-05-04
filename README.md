@@ -21,7 +21,7 @@ In this app we pre-select skills (you tick a checkbox) so the demo is easy to fo
 5. Add *"Always reply in haiku"* to the **Your skill (markdown)** textarea. Send anything. All three combine.
 6. Drawer footer → **Simple JSON**. Open the file. Find the field `system_prompt_assembled`—that's the actual string the model saw, with all active skills concatenated under `---` separators.
 
-## Task 2—Index a document for keyword RAG
+## Task 2—Keyword RAG (index + retrieve)
 
 > **Skills before RAG.** When a markdown skill fits, prefer it—deterministic, version-controllable, no retrieval failures. Reach for RAG when the knowledge is too big to paste, or changes faster than you can edit a file.
 
@@ -29,44 +29,39 @@ RAG (retrieval-augmented generation) means: pull relevant passages from an index
 
 **Baseline first.** Before giving the bot any document, see what it already knows. Send: *"What is the Anglistyka Effect?"* — the term comes from a fictional paper we're about to load, so the model has no training data on it. It'll either confess ignorance or hallucinate something plausible. That's the baseline — no retrieval, no grounding.
 
-Now feed it some documents. To see how the two retrieval modes differ at *index time*, set the mode to keyword first—indexing in keyword mode is free (no OpenAI call, no embedding).
+### Index
+
+Indexing in keyword mode is free—no OpenAI call, no embedding model. Set up:
 
 1. Open the **Retrieval-Augmented Generation (RAG)** drawer. Set **Retrieval method** to **Keyword (BM25)**.
-2. Click the **Jabłoński-Żukowski Conjecture (fake Wikipedia-style entry)** example → **Index document**. The chip turns green ✓. Status reads *"Added N chunks (keyword mode — no embeddings)."* Pure JavaScript chunking, no API call.
-3. Click the **Anglistyka Department Spring Review (fake journal-style paper)** example—a companion piece that paraphrases the same ideas in different words and adds dates, departmental reception, and follow-up plans. **Index document** again. Both chips green now—chunks accumulate (append mode); the index spans two related docs.
+2. Click the **Jabłoński-Żukowski Conjecture (fake Wikipedia-style entry, 2025)** example → **Index document**. The document button turns green ✓. Status reads *"Added N chunks (keyword mode — no embeddings)."* Pure JavaScript chunking, no API call.
+3. Click the **Anglistyka Department Spring Review (fake journal-style paper, 2026)** example—a companion piece that paraphrases the same ideas in different words and adds dates, departmental reception, and follow-up plans. **Index document** again. Both document buttons green now—chunks accumulate (append mode); the index spans two related docs.
 
-The cost difference between modes will show up when we switch to semantic in Task 4.
+### Retrieve (BM25)
 
-## Task 3—Keyword retrieval (BM25)
+Match query words to chunk words, weighted by rarity (rare words count more) and chunk length (long chunks otherwise unfairly outrank short ones). From the 1990s but still wins for exact-string queries—codes, proper nouns, acronyms (the `?` next to the radio explains why).
 
-> **RAG ≠ vector databases.** The production default today is hybrid search: BM25 keyword retrieval (still the engine inside Elasticsearch, OpenSearch, Lucene) combined with dense vector search, sometimes with a learned sparse layer (SPLADE) between them. BM25 is from the 1990s but still wins for exact-string queries—codes, proper nouns, acronyms.
-
-Older algorithm, simpler logic. Match query words to chunk words, weighted by rarity (rare words count more) and chunk length (long chunks otherwise unfairly outrank short ones).
-
-1. The **Retrieval method** radio should still be on **Keyword (BM25)** from Task 2.
-2. Click the **?** next to it for a one-paragraph explanation. Read it.
-3. Send: *"What is the Anglistyka Effect?"*—this query contains a verbatim string from the doc.
-4. The reply should answer correctly. The meta line should show `+3 RAG chunks` (purple chip—top-3 by BM25 score, prepended to the system prompt).
-5. Drawer footer → **Detailed JSON**. Find the assistant turn → `retrieved_context` (the actual passages injected) and `retrieval_mode` should say `"keyword"`.
+1. Send: *"What is the Anglistyka Effect?"*—this query contains a verbatim string from the doc.
+2. The reply should answer correctly. The meta line should show `+3 RAG chunks`—top-3 by BM25 score, prepended to the system prompt.
+3. Drawer footer → **Detailed JSON**. Find the assistant turn → `retrieved_context` (the actual passages injected) and `retrieval_mode` should say `"keyword"`.
 
 What this proves: **keyword retrieval matches by exact string**. No embeddings, no API call at chat time—just term frequency × inverse document frequency × length normalisation in ~50 lines of vanilla JS. The algorithm is from the 1990s (Robertson and Spärck Jones), still the default in Elasticsearch and OpenSearch.
 
-Now try a paraphrase that shares no content words with the docs: *"Why might gifted polyglots blunder addition?"*—same idea as *affective arithmetic*, expressed in synonyms. No `+N RAG chunks` chip; the model falls back to general knowledge and gives a generic answer about cognitive load. That's the keyword limitation: BM25 only matches what's lexically present.
+Now try a paraphrase that shares no content words with the docs: *"Why might gifted polyglots blunder addition?"*—same idea as *affective arithmetic*, expressed in synonyms. No `+N RAG chunks` tag on the meta line; the model falls back to general knowledge and gives a generic answer about cognitive load. That's the keyword limitation: BM25 only matches what's lexically present. Vector retrieval comes next.
 
-## Task 4—Vector retrieval (semantic embeddings)
+## Task 3—Switch to vector retrieval (semantic embeddings)
 
 Newer algorithm, abstract logic. Convert the query and each chunk into a high-dimensional vector; rank chunks by cosine similarity to the query vector.
 
-1. Switch the **Retrieval method** radio to **Semantic (cosine on embeddings)**. Both chips drop the green ✓—keyword-indexed chunks have text but no embeddings, so semantic can't query them yet.
-2. Click the **?** for a paragraph on how it works.
-3. Send the same query that just failed in keyword mode: *"Why might gifted polyglots blunder addition?"*
-4. **First-time cost.** Because we indexed in keyword mode (text only, no embeddings), the app embeds each chunk on the fly before ranking. Status counts up *"Lazy-embedding chunk X of Y…"* once, then both chips re-green—chunks now have embeddings, queryable in either mode. Future semantic queries skip the backfill.
-5. The reply should pull the answer from the indexed chunks—mentioning *affective arithmetic* and *2 + 2 yielding 5*. Meta line shows `+3 RAG chunks`.
-6. Detailed JSON → `retrieval_mode` should now say `"semantic"`.
+1. Switch the **Retrieval method** radio to **Semantic (cosine on embeddings)**. Both document buttons drop the green ✓—keyword-indexed chunks have text but no embeddings, so semantic can't query them yet.
+2. Send the same query that just failed in keyword mode: *"Why might gifted polyglots blunder addition?"*
+3. **First-time cost.** Because we indexed in keyword mode (text only, no embeddings), the app embeds each chunk on the fly before ranking. Status counts up *"Lazy-embedding chunk X of Y…"* once, then both document buttons re-green—chunks now have embeddings, queryable in either mode. Future semantic queries skip the backfill.
+4. The reply should pull the answer from the indexed chunks—mentioning *affective arithmetic* and *2 + 2 yielding 5*. Meta line shows `+3 RAG chunks`.
+5. Detailed JSON → `retrieval_mode` should now say `"semantic"`.
 
 What this proves: **semantic retrieval matches by meaning**. The query embeds into a 1536-dimensional vector via OpenAI's `text-embedding-3-small`, and cosine ranking surfaces the chunks about affective arithmetic even though the query shares zero content words with the docs. One OpenAI embedding call per query (plus the one-time backfill at the moment of mode-switching).
 
-## Task 5—Compare side by side
+## Task 4—Compare side by side
 
 Same indexed documents. Same chunks. Different ranking. Run each query in **both** modes and watch the meta line:
 
@@ -83,7 +78,7 @@ What this proves: **neither mode dominates**. Production systems combine both—
 
 - **Send returns 401.** OpenAI key not set or expired. Re-paste in Settings.
 - **Embeddings call returns 429.** Rate limit. Wait 30 seconds and retry, or chunk less aggressively (longer, fewer chunks).
-- **Keyword mode returns no `+N RAG chunks` chip.** Your query has no words in common with the indexed text. Try a different phrasing, or switch to semantic.
+- **Keyword mode returns no `+N RAG chunks` tag.** Your query has no words in common with the indexed text. Try a different phrasing, or switch to semantic.
 - **Switching modes mid-conversation gives different answers to the same question.** That's the point—different retrieval, different evidence reaches the model.
 
 ---
