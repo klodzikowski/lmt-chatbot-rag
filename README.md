@@ -1,10 +1,10 @@
 # LMT Chatbot #3 (RAG)
 
-A reference fork of [`lmt-chatbot-skills`](https://github.com/klodzikowski/lmt-chatbot-skills) for Class 21 of the 2 MA LMT *Artificial Intelligence* course at Adam Mickiewicz University. Today we add **skills** (markdown blobs the bot summons on demand) and **RAG** (retrieval from an indexed document, with two algorithms side-by-side—keyword and vector).
+A reference fork of [`lmt-chatbot-skills`](https://github.com/klodzikowski/lmt-chatbot-skills) for Class 21 of the 2 MA LMT *Artificial Intelligence* course at Adam Mickiewicz University. Adds two layers on top of the chatbot baseline: **skills** (markdown blobs the bot summons on demand) and **RAG** (retrieval from an indexed document), with two retrieval algorithms side-by-side—keyword (BM25) and vector (semantic embeddings).
 
 **Skills before RAG.** When a markdown skill fits, prefer it—deterministic, version-controllable, no retrieval failures. Reach for RAG when the knowledge is too big to paste, or changes faster than you can edit a file.
 
-**RAG ≠ vector databases.** The default in production today is hybrid search: keyword retrieval (BM25, used in Elasticsearch, OpenSearch, Lucene) combined with dense vector search, sometimes with a learned sparse layer (SPLADE) in between. BM25 is from the 1990s but still wins for exact-string queries—codes, proper nouns, acronyms. We'll start there.
+**RAG ≠ vector databases.** The production default today is hybrid search: keyword retrieval (BM25, used in Elasticsearch, OpenSearch, Lucene) combined with dense vector search, sometimes with a learned sparse layer (SPLADE) in between. BM25 is from the 1990s but still wins for exact-string queries—codes, proper nouns, acronyms. The walkthrough below covers both: keyword first, vectors second.
 
 **Try it:** [klodzikowski.github.io/lmt-chatbot-rag](https://klodzikowski.github.io/lmt-chatbot-rag/). New URL means new storage—you'll need to re-enter your OpenAI key.
 
@@ -36,11 +36,11 @@ RAG (retrieval-augmented generation) means: pull relevant passages from an index
 2. Click the **Jabłoński-Żukowski Conjecture (made-up)** preset button. The textarea fills with a fictional academic paper.
 3. Click **Index document**. Status counts "Embedding chunk 1 of N…" then "Added N chunks. N total in the index."
 
-Each chunk is embedded once via OpenAI's `text-embedding-3-small`. The same indexed chunks serve **both** retrieval algorithms we'll try next—only the ranking differs.
+Each chunk is embedded once via OpenAI's `text-embedding-3-small`. The same indexed chunks serve **both** retrieval algorithms below—only the ranking differs.
 
 ## Task 3—Keyword retrieval (BM25)
 
-Older algorithm, simpler logic. Match query words to chunk words, weighted by rarity (rare words count more) and chunk length (long chunks would otherwise unfairly outrank short ones).
+Older algorithm, simpler logic. Match query words to chunk words, weighted by rarity (rare words count more) and chunk length (long chunks otherwise unfairly outrank short ones).
 
 1. In the RAG drawer, set **Retrieval method** to **Keyword (BM25)**.
 2. Click the **?** next to it for a one-paragraph explanation. Read it.
@@ -77,22 +77,23 @@ Same indexed document. Same chunks. Different ranking. Run each query in **both*
 
 What this proves: **neither mode dominates**. Production systems combine both—keyword for verbatim, semantic for paraphrase, weight the scores, ship. That's "hybrid search."
 
-## Reset behaviour
-
-- **Clear chat**—empties the screen only. Storage stays untouched. Reload re-hydrates from whichever Memory backend is active.
-- **Reset all**—wipes everything: chat, API key, system prompt, sliders, active skills, RAG index, retrieval-mode choice, `localStorage` history, AND the Supabase rows for `user_id = 'demo'`.
-
 ## Troubleshooting
 
 - **Send returns 401.** OpenAI key not set or expired. Re-paste in Settings.
 - **Embeddings call returns 429.** Rate limit. Wait 30 seconds and retry, or chunk less aggressively (longer, fewer chunks).
 - **Keyword mode returns no `+N RAG chunks` chip.** Your query has no words in common with the indexed text. Try a different phrasing, or switch to semantic.
 - **Switching modes mid-conversation gives different answers to the same question.** That's the point—different retrieval, different evidence reaches the model.
-- **Indexer says "Embedding chunk X of Y" even when I'm in keyword mode.** Indexing always embeds, so you can flip back to semantic for free. The mode toggle only changes ranking at chat time.
+- **Indexer says "Embedding chunk X of Y" even when in keyword mode.** Indexing always embeds, so you can flip back to semantic for free. The mode toggle only changes ranking at chat time.
+
+## Use as homework reference
+
+Point your AI coding assistant at this repo and ask it to add the keyword/semantic toggle to your own fork. Example prompt:
+
+> *Add a Semantic / Keyword (BM25) retrieval toggle to the RAG section of my chatbot. Use the bm25Rank function from `klodzikowski/lmt-chatbot-rag/index.html` as the reference implementation.*
 
 ---
 
-## At a glance (architecture)
+## Appendix — Architecture reference
 
 | Component | OpenAI calls (per query) | Contribution to the system prompt |
 | --- | --- | --- |
@@ -102,9 +103,9 @@ What this proves: **neither mode dominates**. Production systems combine both—
 | **RAG (keyword)** | None—BM25 in vanilla JS | Top-3 chunks (BM25-ranked) under the same header |
 | **Orchestrator** (`buildAugmentedSystemPrompt`) | None | Joins the contributions with `---` and ships the prompt to `/v1/chat/completions` |
 
-Chunks are embedded once at index time, regardless of mode—so flipping the toggle mid-class is free.
+Chunks are embedded once at index time, regardless of retrieval mode—so flipping the toggle is free.
 
-## BM25 in 50 lines
+### BM25 in 50 lines
 
 `bm25Rank(query, chunks)` in `index.html` is the implementation. Pseudo-code:
 
@@ -123,22 +124,4 @@ for each query term t:
 
 `k1 = 1.5` controls how quickly term frequency saturates (the 10th occurrence of a word matters less than the 1st). `b = 0.75` controls length normalisation. Standard Robertson-Spärck Jones values, the default in Elasticsearch and OpenSearch.
 
-## Source map
-
-`index.html` is one file. Key entries in the `<script>` block:
-
-- `PRESET_SKILLS`, `PRESET_DOCS`—preset definitions.
-- `getActiveSkillContent()`—concatenates ticked presets plus the custom textarea.
-- `buildAugmentedSystemPrompt(lastUserMessage)`—assembles `[user prompt] + [active skills] + [retrieved chunks]` with `---` separators.
-- `embed(text)`, `cosineSim(a, b)`—the semantic primitives.
-- `bm25Tokenise(text)`, `bm25Rank(query, chunks)`—the keyword primitives. Pure JS, no deps.
-- `getRagMode()`, `retrieveContext(query, k=3)`—reads the radio, picks the path.
-- `saveHistoryToStorage()`, `saveHistoryToSupabase()`, `hydrateHistoryFromSupabase()`—the memory dispatch.
-
 Storage keys are namespaced `lmt-chatbot-rag-*` to avoid colliding with the `lmt-chatbot-skills` and `lmt-chatbot` forks on the same `klodzikowski.github.io` origin.
-
-## Use as homework reference
-
-Point your AI coding assistant at this repo and ask it to add the keyword/semantic toggle to your own fork. Example prompt:
-
-> *Add a Semantic / Keyword (BM25) retrieval toggle to the RAG section of my chatbot. Use the bm25Rank function from `klodzikowski/lmt-chatbot-rag/index.html` as the reference implementation.*
