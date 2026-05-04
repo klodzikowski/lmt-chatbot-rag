@@ -6,14 +6,7 @@ A reference fork of [`lmt-chatbot-skills`](https://github.com/klodzikowski/lmt-c
 
 **RAG ≠ vector databases.** The production default today is hybrid search: keyword retrieval (BM25, used in Elasticsearch, OpenSearch, Lucene) combined with dense vector search, sometimes with a learned sparse layer (SPLADE) in between. BM25 is from the 1990s but still wins for exact-string queries—codes, proper nouns, acronyms. The walkthrough below covers both: keyword first, vectors second.
 
-**Try it:** [klodzikowski.github.io/lmt-chatbot-rag](https://klodzikowski.github.io/lmt-chatbot-rag/). New URL means new storage—you'll need to re-enter your OpenAI key.
-
-## Setup
-
-1. Go to <https://klodzikowski.github.io/lmt-chatbot-rag/>.
-2. Open the drawer (hamburger top-left). Settings is open by default; Memory, Skills, RAG are collapsed.
-3. Paste your OpenAI API key into Settings → OpenAI API key.
-4. Send a test message. A reply should land within a few seconds.
+**Try it:** [klodzikowski.github.io/lmt-chatbot-rag](https://klodzikowski.github.io/lmt-chatbot-rag/). Same UI as the previous fork; the app prompts for your OpenAI key on first use. New URL means fresh storage—re-enter the key even if you'd set it up before.
 
 ## Task 1—Skills
 
