@@ -1049,22 +1049,22 @@ Preset use cases (temperature · top-p):
             <p class="field-note" style="margin-top:.7rem;margin-bottom:.2rem;font-weight:600;color:var(--fg)">Retrieval method:</p>
             <div class="rag-mode-radios" id="rag-mode-radios">
               <label>
-                <input type="radio" name="rag-mode" value="semantic" checked />
-                Semantic <span class="rag-mode-sub">(cosine on embeddings)</span>
-                <button type="button" class="help-tip wide" data-help="Embeds your query into a 1536-dim vector via OpenAI's text-embedding-3-small, then ranks indexed chunks by cosine similarity to that vector.
-
-Wins when the query and the document say the same thing in different words — meaning aligns even when vocabulary doesn't.
-
-Costs one OpenAI embedding call per query." aria-label="How semantic retrieval works">?</button>
-              </label>
-              <label>
-                <input type="radio" name="rag-mode" value="keyword" />
+                <input type="radio" name="rag-mode" value="keyword" checked />
                 Keyword <span class="rag-mode-sub">(BM25)</span>
                 <button type="button" class="help-tip wide" data-help="Best Match 25 — a keyword ranking algorithm from the 1990s (Robertson and Spärck Jones). Still the default in Elasticsearch, OpenSearch, and Lucene.
 
 Scores each chunk by query-term frequency, weighted by how rare each word is across the index (inverse document frequency) and normalised for chunk length. Pure JS — no API call, no embedding model.
 
 Wins for exact-string queries, codes, proper nouns. The cleanest counter-example to the always-reach-for-vectors reflex." aria-label="How BM25 keyword retrieval works">?</button>
+              </label>
+              <label>
+                <input type="radio" name="rag-mode" value="semantic" />
+                Semantic <span class="rag-mode-sub">(cosine on embeddings)</span>
+                <button type="button" class="help-tip wide" data-help="Embeds your query into a 1536-dim vector via OpenAI's text-embedding-3-small, then ranks indexed chunks by cosine similarity to that vector.
+
+Wins when the query and the document say the same thing in different words — meaning aligns even when vocabulary doesn't.
+
+Costs one OpenAI embedding call per query." aria-label="How semantic retrieval works">?</button>
               </label>
             </div>
 
@@ -1437,10 +1437,11 @@ An earlier draft reportedly circulated only among the authors and a handful of e
       try { ragIndex = JSON.parse(localStorage.getItem(KEYS.rag_index) || "[]"); }
       catch { ragIndex = []; }
 
-      // Retrieval-mode radio (semantic | keyword). Default to semantic.
+      // Retrieval-mode radio (keyword | semantic). Default to keyword—it's
+      // the cheaper, simpler path and matches what students do in Task 2.
       // Persists in localStorage so the choice survives reloads.
       const ragModeRadios = document.querySelectorAll('input[name="rag-mode"]');
-      const savedRagMode = localStorage.getItem(KEYS.rag_mode) || "semantic";
+      const savedRagMode = localStorage.getItem(KEYS.rag_mode) || "keyword";
       for (const r of ragModeRadios) r.checked = (r.value === savedRagMode);
       for (const r of ragModeRadios) {
         r.addEventListener("change", () => {
@@ -1824,7 +1825,13 @@ An earlier draft reportedly circulated only among the authors and a handful of e
         else localStorage.removeItem(KEYS.rag_doc);
       });
 
-      // Returns a 1536-dimensional float vector (text-embedding-3-small).
+      // Embedding: turn text into a 1536-d float vector via OpenAI's
+      // text-embedding-3-small. The model places semantically similar
+      // texts near each other in this space—paraphrases, synonyms, the
+      // same idea in different words. That's the property cosine ranking
+      // exploits. Cost ~$0.00002 per 1k tokens, paid once per chunk at
+      // index time and once per query. The non-zero cost (vs BM25's zero)
+      // is the whole point of the keyword-vs-semantic comparison.
       async function embed(text) {
         const r = await fetch("https://api.openai.com/v1/embeddings", {
           method: "POST",
@@ -1842,29 +1849,38 @@ An earlier draft reportedly circulated only among the authors and a handful of e
         return body.data[0].embedding;
       }
 
+      // Cosine similarity: angle between two vectors, ignoring magnitude.
+      // We want direction, not length—a 5-word query and a 500-char chunk
+      // should still score 1.0 if they "point the same way" (talk about
+      // the same thing). Range [-1, 1]; in embedding space, ~0.3 is
+      // weakly related, 0.6+ is strongly related.
+      // Formula: dot(a, b) / (||a|| · ||b||).
       function cosineSim(a, b) {
         let dot = 0, na = 0, nb = 0;
         for (let i = 0; i < a.length; i++) {
-          dot += a[i] * b[i];
-          na += a[i] * a[i];
-          nb += b[i] * b[i];
+          dot += a[i] * b[i];   // running dot product
+          na += a[i] * a[i];    // squared norm of a
+          nb += b[i] * b[i];    // squared norm of b
         }
         return dot / (Math.sqrt(na) * Math.sqrt(nb));
       }
 
-      // BM25 keyword retrieval. Term-frequency × inverse-document-frequency
-      // × length-normalisation. Standard Robertson-Spärck Jones formula:
-      //   IDF(t) = log((N - df(t) + 0.5) / (df(t) + 0.5) + 1)
-      //   tf-norm = f * (k1 + 1) / (f + k1 * (1 - b + b * |chunk| / avgLen))
-      //   score(chunk, query) = Σ over query terms t of IDF(t) × tf-norm(t)
+      // BM25 keyword retrieval. Three ideas combined into one score per chunk:
+      //   1. Term frequency (tf) — more matches in a chunk → higher score,
+      //      but with diminishing returns (10th occurrence matters less than 1st).
+      //   2. Inverse document frequency (idf) — rare terms across the index
+      //      score higher than common ones. "Jabłoński" beats "the".
+      //   3. Length normalisation — long chunks otherwise outrank short ones
+      //      just by having more words. We discount that penalty.
       // Pure JS over the already-indexed chunk text. No embedding call, no
       // network. Pedagogical foil to the semantic path.
-      const BM25_K1 = 1.5;  // tf saturation (typical 1.2–2.0)
-      const BM25_B = 0.75;  // length-normalisation weight (0 = none, 1 = full)
+      const BM25_K1 = 1.5;  // tf saturation: how fast diminishing returns kick in (typical 1.2–2.0)
+      const BM25_B = 0.75;  // length-normalisation strength (0 = ignore length, 1 = full penalty)
 
       function bm25Tokenise(text) {
-        // Letters + digits, lowercased; everything else is a separator.
-        // Unicode-aware so Polish names like "Jabłoński" tokenise cleanly.
+        // Lowercase + split on any non-letter / non-digit character.
+        // Unicode-aware so Polish names like "Jabłoński" stay a single token,
+        // not get cut on the diacritic.
         return (text.toLowerCase().match(/[\p{L}\p{N}]+/gu) || []);
       }
 
@@ -1877,7 +1893,10 @@ An earlier draft reportedly circulated only among the authors and a handful of e
         const N = chunks.length;
         const avgLen = lens.reduce((s, l) => s + l, 0) / Math.max(1, N);
 
-        // Document frequency per term across the index.
+        // Document frequency: for each unique term, how many chunks contain it.
+        // Drives idf below — terms appearing in many chunks (like "the")
+        // collapse to near-zero weight; terms in just one or two chunks
+        // dominate the score.
         const df = new Map();
         for (const tokens of tokenised) {
           const seen = new Set(tokens);
@@ -1887,14 +1906,22 @@ An earlier draft reportedly circulated only among the authors and a handful of e
         const queryTerms = [...new Set(bm25Tokenise(query))];
         return tokenised
           .map((tokens, i) => {
+            // Term frequency for THIS chunk: how many times each query term
+            // appears in it.
             const tf = new Map();
             for (const t of tokens) tf.set(t, (tf.get(t) || 0) + 1);
             let score = 0;
             for (const q of queryTerms) {
               const f = tf.get(q) || 0;
-              if (!f) continue;
+              if (!f) continue;  // term absent from this chunk → contributes 0
               const dfq = df.get(q) || 0;
+              // idf: rare terms count more. log-shaped so the boost is bounded—
+              // a term in 1 of 10 chunks isn't infinitely better than 1 of 5.
               const idf = Math.log((N - dfq + 0.5) / (dfq + 0.5) + 1);
+              // tf with saturation (k1) + length normalisation (b). The
+              // (b * lens[i] / avgLen) term divides the score for chunks
+              // longer than average and boosts shorter ones, so a single
+              // match in a 100-word chunk beats a single match in a 1000-word one.
               const norm =
                 (f * (BM25_K1 + 1)) /
                 (f + BM25_K1 * (1 - BM25_B + (BM25_B * lens[i]) / avgLen));
@@ -2015,7 +2042,7 @@ An earlier draft reportedly circulated only among the authors and a handful of e
 
       function getRagMode() {
         const checked = document.querySelector('input[name="rag-mode"]:checked');
-        return checked ? checked.value : "semantic";
+        return checked ? checked.value : "keyword";
       }
 
       // Concatenate every active skill (ticked presets + the custom textarea)

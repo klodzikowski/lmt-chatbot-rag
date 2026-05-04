@@ -4,10 +4,6 @@
 
 A reference fork of [`lmt-chatbot-skills`](https://github.com/klodzikowski/lmt-chatbot-skills) for Class 21 of the 2 MA LMT *Artificial Intelligence* course at Adam Mickiewicz University. Adds two layers on top of the chatbot baseline: **skills** (markdown blobs the bot summons on demand) and **RAG** (retrieval from an indexed document), with two retrieval algorithms side-by-side—keyword (BM25) and vector (semantic embeddings).
 
-**Skills before RAG.** When a markdown skill fits, prefer it—deterministic, version-controllable, no retrieval failures. Reach for RAG when the knowledge is too big to paste, or changes faster than you can edit a file.
-
-**RAG ≠ vector databases.** The production default today is hybrid search: keyword retrieval (BM25, used in Elasticsearch, OpenSearch, Lucene) combined with dense vector search, sometimes with a learned sparse layer (SPLADE) in between. BM25 is from the 1990s but still wins for exact-string queries—codes, proper nouns, acronyms. The walkthrough below covers both: keyword first, vectors second.
-
 **Try it:** [klodzikowski.github.io/lmt-chatbot-rag](https://klodzikowski.github.io/lmt-chatbot-rag/).
 
 ## Task 1—Skills
@@ -20,12 +16,14 @@ In this app we pre-select skills (you tick a checkbox) so the demo is easy to fo
 
 1. Open the **Skills** drawer. Three preset checkboxes: **Top-mark thesis**, **Tight summariser**, **Stretch a deadline**.
 2. Tick **Top-mark thesis** and ask *"Help me with a thesis on agentic AI in education."* The reply should land in coach voice, opening with one Socratic question.
-3. Untick. Resend the same question. Generic helper voice.
+3. Untick. Resend the same question. Generic helper voice—will gladly write your MA thesis for you. The **Top-mark thesis** skill flips the behaviour towards questions only.
 4. Tick **two presets** at once (Top-mark thesis + Tight summariser) and resend. Behaviours combine.
 5. Add *"Always reply in haiku"* to the **Your skill (markdown)** textarea. Send anything. All three combine.
 6. Drawer footer → **Simple JSON**. Open the file. Find the field `system_prompt_assembled`—that's the actual string the model saw, with all active skills concatenated under `---` separators.
 
-## Task 2—Index a RAG document
+## Task 2—Index a document for keyword RAG
+
+> **Skills before RAG.** When a markdown skill fits, prefer it—deterministic, version-controllable, no retrieval failures. Reach for RAG when the knowledge is too big to paste, or changes faster than you can edit a file.
 
 RAG (retrieval-augmented generation) means: pull relevant passages from an indexed document into the system prompt before each reply. First we index. Then we query.
 
@@ -40,6 +38,8 @@ Now feed it some documents. To see how the two retrieval modes differ at *index 
 The cost difference between modes will show up when we switch to semantic in Task 4.
 
 ## Task 3—Keyword retrieval (BM25)
+
+> **RAG ≠ vector databases.** The production default today is hybrid search: BM25 keyword retrieval (still the engine inside Elasticsearch, OpenSearch, Lucene) combined with dense vector search, sometimes with a learned sparse layer (SPLADE) between them. BM25 is from the 1990s but still wins for exact-string queries—codes, proper nouns, acronyms.
 
 Older algorithm, simpler logic. Match query words to chunk words, weighted by rarity (rare words count more) and chunk length (long chunks otherwise unfairly outrank short ones).
 
