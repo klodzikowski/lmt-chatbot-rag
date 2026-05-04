@@ -93,7 +93,13 @@ What this proves: **neither mode dominates**. Production systems combine both—
 | **RAG (keyword)** | None—BM25 in vanilla JS | Top-3 chunks (BM25-ranked) under the same header |
 | **Orchestrator** (`buildAugmentedSystemPrompt`) | None | Joins the contributions with `---` and ships the prompt to `/v1/chat/completions` |
 
-Chunks are embedded once at index time, regardless of retrieval mode—so flipping the toggle is free.
+### How indexing works per mode
+
+The **Index document** button is mode-aware:
+
+- **Keyword (BM25) mode.** Chunks the textarea at ~500 chars and stores each chunk as `{ text }`. No OpenAI call, no embedding model. Status reads *"Added N chunks (keyword mode — no embeddings)."* Pure JS, deterministic, fast.
+- **Semantic (vector) mode.** Same chunking, but each chunk is also sent to OpenAI's `text-embedding-3-small` to produce a 1536-dimensional float vector. The chunk is stored as `{ text, embedding }`. Status counts up *"Embedding chunk X of Y…"* so the per-chunk cost is visible.
+- **Switching modes after indexing.** If you indexed in keyword mode and then switch to semantic and query, the missing embeddings are computed lazily on that first query (one-time backfill, status shows the progress). No manual re-index needed; future semantic queries are then cheap.
 
 ### BM25 in 50 lines
 

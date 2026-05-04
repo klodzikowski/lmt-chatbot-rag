@@ -1820,34 +1820,46 @@ An earlier draft reportedly circulated only among the authors and a handful of e
           .sort((a, b) => b.score - a.score);
       }
 
-      // Index button: APPEND mode. Each click adds the textarea content as
-      // new chunks alongside whatever's already in the index. Lets students
-      // build a multi-document index by pasting (or uploading) a few sources
-      // in turn. The Clear index button wipes everything.
+      // Index button: APPEND mode + mode-aware behaviour.
+      //   - Keyword (BM25) mode: chunk the textarea, store each as { text }.
+      //     No OpenAI call, no embedding model. Pure JS, deterministic, fast.
+      //   - Semantic mode: chunk + embed each via OpenAI's text-embedding-3-small,
+      //     store as { text, embedding }. Status counts up so cost is visible.
+      // If chunks indexed in keyword mode are later queried in semantic mode,
+      // retrieveContext lazy-embeds them on the fly (one-time backfill, no
+      // manual re-index). Lets students see the cost difference at index time.
       ragIndexBtn.addEventListener("click", async () => {
         const text = ragDocInput.value.trim();
         if (!text) {
           ragStatus.textContent = "Paste a document first.";
           return;
         }
-        if (!keyInput.value) {
-          ragStatus.textContent = "Add your OpenAI API key in Settings first.";
+        const mode = getRagMode();
+        if (mode === "semantic" && !keyInput.value) {
+          ragStatus.textContent = "Add your OpenAI API key in Settings first (semantic mode embeds at index time).";
           return;
         }
         ragIndexBtn.disabled = true;
         const before = ragIndex.length;
-        ragStatus.textContent = "Indexing…";
+        ragStatus.textContent = mode === "keyword" ? "Chunking…" : "Indexing…";
         try {
           // Naive ~500-character chunking, no overlap. Good enough for demos.
           const chunks = text.match(/[\s\S]{1,500}/g) || [];
-          for (let i = 0; i < chunks.length; i++) {
-            ragStatus.textContent = `Embedding chunk ${i + 1} of ${chunks.length}…`;
-            ragIndex.push({ text: chunks[i], embedding: await embed(chunks[i]) });
+          if (mode === "keyword") {
+            // Text only — no API call.
+            for (const chunk of chunks) ragIndex.push({ text: chunk });
+            ragStatus.textContent = `Added ${chunks.length} chunk(s) (keyword mode — no embeddings). ${ragIndex.length} total.`;
+          } else {
+            // Semantic — embed each chunk via OpenAI.
+            for (let i = 0; i < chunks.length; i++) {
+              ragStatus.textContent = `Embedding chunk ${i + 1} of ${chunks.length}…`;
+              ragIndex.push({ text: chunks[i], embedding: await embed(chunks[i]) });
+            }
+            const added = ragIndex.length - before;
+            ragStatus.textContent = `Added ${added} chunk(s). ${ragIndex.length} total in the index.`;
           }
           try { localStorage.setItem(KEYS.rag_index, JSON.stringify(ragIndex)); }
           catch { /* may exceed quota for very large docs; in-memory still works */ }
-          const added = ragIndex.length - before;
-          ragStatus.textContent = `Added ${added} chunk(s). ${ragIndex.length} total in the index.`;
           ragDocInput.value = "";
           localStorage.removeItem(KEYS.rag_doc);
         } catch (err) {
@@ -1880,6 +1892,18 @@ An earlier draft reportedly circulated only among the authors and a handful of e
               .slice(0, k)
               .map((r) => ragIndex[r.idx].text)
               .join("\n\n---\n\n");
+          }
+          // Semantic mode. Lazy-embed any chunks indexed earlier in keyword
+          // mode (no embedding stored) so they can be cosine-ranked too.
+          const missing = ragIndex.filter((c) => !c.embedding);
+          if (missing.length > 0) {
+            if (!keyInput.value) return "";
+            for (let i = 0; i < missing.length; i++) {
+              ragStatus.textContent = `Lazy-embedding chunk ${i + 1} of ${missing.length} (one-time keyword→semantic backfill)…`;
+              missing[i].embedding = await embed(missing[i].text);
+            }
+            try { localStorage.setItem(KEYS.rag_index, JSON.stringify(ragIndex)); } catch {}
+            ragStatus.textContent = `Backfilled ${missing.length} embedding(s). ${ragIndex.length} chunk(s) ready for either mode.`;
           }
           // Semantic: embed the query, cosine-rank.
           const q = await embed(query);
