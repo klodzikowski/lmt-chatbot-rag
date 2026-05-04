@@ -29,7 +29,7 @@ RAG (retrieval-augmented generation) means: pull relevant passages from an index
 
 **Baseline first.** Before giving the bot any document, see what it already knows. Send: *"What is the Anglistyka Effect?"* — the term comes from a fictional paper we're about to load, so the model has no training data on it. It'll either confess ignorance or hallucinate something plausible. That's the baseline — no retrieval, no grounding.
 
-### Index
+### 2.1 Index
 
 Indexing in keyword mode is free—no OpenAI call, no embedding model. Set up:
 
@@ -37,7 +37,7 @@ Indexing in keyword mode is free—no OpenAI call, no embedding model. Set up:
 2. Click the **Jabłoński-Żukowski Conjecture (fake Wikipedia-style entry, 2025)** example → **Index document**. The document button turns green ✓. Status reads *"Added N chunks (keyword mode — no embeddings)."* Pure JavaScript chunking, no API call.
 3. Click the **Anglistyka Department Spring Review (fake journal-style paper, 2026)** example—a companion piece that paraphrases the same ideas in different words and adds dates, departmental reception, and follow-up plans. **Index document** again. Both document buttons green now—chunks accumulate (append mode); the index spans two related docs.
 
-### Retrieve (BM25)
+### 2.2 Retrieve (BM25)
 
 Match query words to chunk words, weighted by rarity (rare words count more) and chunk length (long chunks otherwise unfairly outrank short ones). From the 1990s but still wins for exact-string queries—codes, proper nouns, acronyms (the `?` next to the radio explains why).
 
