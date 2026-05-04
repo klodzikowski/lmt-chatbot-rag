@@ -723,6 +723,47 @@
         white-space: pre-wrap;
       }
 
+      /* Hover tooltip anchored on a mini-btn itself, no extra '?' icon.
+         Used for Index/Clear and the preset doc chips. */
+      .mini-btn[data-tip] { position: relative; }
+      .mini-btn[data-tip]::after {
+        content: attr(data-tip);
+        position: absolute;
+        top: calc(100% + .4rem);
+        left: 0;
+        width: max-content;
+        max-width: 320px;
+        padding: .55rem .7rem;
+        background: var(--surface-2);
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        color: var(--fg);
+        font-family: inherit;
+        font-size: .74rem;
+        font-weight: 400;
+        line-height: 1.5;
+        text-align: left;
+        white-space: normal;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, .45);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 120ms ease;
+        z-index: 25;
+      }
+      .mini-btn[data-tip]:hover::after,
+      .mini-btn[data-tip]:focus-visible::after {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      /* Preset doc chip in the indexed state — its content is currently
+         in the index. Green border + check mark. */
+      .mini-btn.indexed {
+        border-color: #16a34a;
+        color: #86efac;
+      }
+      .mini-btn.indexed::before { content: "✓ "; }
+
       .section-heading {
         font-size: .74rem;
         font-weight: 600;
@@ -1001,7 +1042,7 @@ Preset use cases (temperature · top-p):
         </details>
 
         <details class="drawer-section">
-          <summary>RAG</summary>
+          <summary>Retrieval-Augmented Generation</summary>
           <div class="drawer-section-body">
             <p class="field-note" style="margin-top:.55rem">When a skill file isn't enough—too big, or you want retrieval to pick relevant chunks per query—paste a long document and click Index. Top-3 most relevant chunks are prepended to the system prompt before each chat call.</p>
 
@@ -1035,8 +1076,8 @@ Wins for exact-string queries, codes, proper nouns. The cleanest counter-example
               </div>
               <textarea id="rag-doc" spellcheck="false" placeholder="Paste text here, then click Index. Add more documents by pasting again and indexing—they accumulate."></textarea>
               <div style="display:flex;gap:.4rem;margin-top:.4rem;flex-wrap:wrap;">
-                <button type="button" id="rag-index" class="mini-btn" title="Chunk the textarea content into ~500-character pieces, embed each via OpenAI's text-embedding-3-small, and append to the index. Cumulative—paste another doc and click again to add more.">Index document</button>
-                <button type="button" id="rag-clear" class="mini-btn" title="Wipe the indexed chunks from memory and from localStorage. The textarea is unaffected.">Clear index</button>
+                <button type="button" id="rag-index" class="mini-btn" data-tip="Chunk the textarea content into ~500-character pieces, embed each via OpenAI's text-embedding-3-small, and append to the index. Cumulative—paste another doc and click again to add more.">Index document</button>
+                <button type="button" id="rag-clear" class="mini-btn" data-tip="Wipe the indexed chunks from memory and from localStorage. The textarea is unaffected.">Clear index</button>
               </div>
               <p class="field-note" id="rag-status">No documents indexed.</p>
             </div>
@@ -1459,6 +1500,12 @@ An earlier draft reportedly circulated only among the authors and a handful of e
       // students see the pipeline (paste then index), and indexing always
       // costs an OpenAI embeddings call—a one-click load+index would burn
       // credits on every accidental click.
+      // Tracks which preset (if any) is currently loaded in the textarea.
+      // Set when a preset chip is clicked, cleared on any user edit. The
+      // Index handler reads this to attribute new chunks to a source so
+      // the chip can later show a ✓ when its content is in the index.
+      let pendingPresetId = null;
+
       const presetDocsContainer = document.getElementById("preset-docs");
       function renderPresetDocs() {
         if (!presetDocsContainer) return;
@@ -1468,23 +1515,40 @@ An earlier draft reportedly circulated only among the authors and a handful of e
           row.className = "skill-row";
           const btn = document.createElement("button");
           btn.type = "button";
-          btn.className = "mini-btn";
+          btn.className = "mini-btn preset-doc-btn";
           btn.textContent = doc.name;
-          btn.title = "Load this preset into the RAG textarea. Then click Index document to embed.";
+          btn.dataset.docId = doc.id;
+          // Blurb shown as a hover tooltip on the chip itself, replacing
+          // the side-column blurb—keeps the drawer tighter.
+          btn.dataset.tip = `${doc.blurb} Click to load into the textarea, then click Index document to embed.`;
           btn.style.flex = "0 0 auto";
           btn.addEventListener("click", () => {
             ragDocInput.value = doc.content;
+            // Force the textarea to scroll to the top of the loaded doc
+            // (browsers otherwise leave it wherever the cursor was).
+            ragDocInput.setSelectionRange(0, 0);
+            ragDocInput.focus();
+            ragDocInput.scrollTop = 0;
+            pendingPresetId = doc.id;
             localStorage.setItem(KEYS.rag_doc, doc.content);
             ragStatus.textContent = `Loaded "${doc.name}". Click Index document to embed it.`;
-            ragDocInput.focus();
           });
-          const blurb = document.createElement("span");
-          blurb.className = "skill-blurb";
-          blurb.textContent = doc.blurb;
-          blurb.style.marginLeft = ".55rem";
           row.appendChild(btn);
-          row.appendChild(blurb);
           presetDocsContainer.appendChild(row);
+        }
+        updatePresetChipState();
+      }
+
+      // Mark each preset chip with a green ✓ if any indexed chunk was
+      // sourced from it. Source is set on each chunk at index time
+      // (see the ragIndexBtn handler).
+      function updatePresetChipState() {
+        if (!presetDocsContainer) return;
+        const indexedIds = new Set(
+          ragIndex.map((c) => c.source).filter((s) => s && s !== "custom")
+        );
+        for (const btn of presetDocsContainer.querySelectorAll("[data-doc-id]")) {
+          btn.classList.toggle("indexed", indexedIds.has(btn.dataset.docId));
         }
       }
       renderPresetDocs();
@@ -1735,6 +1799,9 @@ An earlier draft reportedly circulated only among the authors and a handful of e
       // RAG: minimal in-browser indexer + retriever. Embeddings via OpenAI's
       // text-embedding-3-small (cheap, strong enough for class demos).
       ragDocInput.addEventListener("input", () => {
+        // User-edited text no longer matches the loaded preset, so the
+        // next index attributes its chunks to "custom" (no green ✓).
+        pendingPresetId = null;
         if (ragDocInput.value) localStorage.setItem(KEYS.rag_doc, ragDocInput.value);
         else localStorage.removeItem(KEYS.rag_doc);
       });
@@ -1841,19 +1908,23 @@ An earlier draft reportedly circulated only among the authors and a handful of e
         }
         ragIndexBtn.disabled = true;
         const before = ragIndex.length;
+        // Attribute each new chunk to its source (preset id or "custom").
+        // Drives the green ✓ on preset chips so students can see at a
+        // glance what's already indexed.
+        const source = pendingPresetId || "custom";
         ragStatus.textContent = mode === "keyword" ? "Chunking…" : "Indexing…";
         try {
           // Naive ~500-character chunking, no overlap. Good enough for demos.
           const chunks = text.match(/[\s\S]{1,500}/g) || [];
           if (mode === "keyword") {
             // Text only — no API call.
-            for (const chunk of chunks) ragIndex.push({ text: chunk });
+            for (const chunk of chunks) ragIndex.push({ text: chunk, source });
             ragStatus.textContent = `Added ${chunks.length} chunk(s) (keyword mode — no embeddings). ${ragIndex.length} total.`;
           } else {
             // Semantic — embed each chunk via OpenAI.
             for (let i = 0; i < chunks.length; i++) {
               ragStatus.textContent = `Embedding chunk ${i + 1} of ${chunks.length}…`;
-              ragIndex.push({ text: chunks[i], embedding: await embed(chunks[i]) });
+              ragIndex.push({ text: chunks[i], embedding: await embed(chunks[i]), source });
             }
             const added = ragIndex.length - before;
             ragStatus.textContent = `Added ${added} chunk(s). ${ragIndex.length} total in the index.`;
@@ -1862,6 +1933,8 @@ An earlier draft reportedly circulated only among the authors and a handful of e
           catch { /* may exceed quota for very large docs; in-memory still works */ }
           ragDocInput.value = "";
           localStorage.removeItem(KEYS.rag_doc);
+          pendingPresetId = null;
+          updatePresetChipState();
         } catch (err) {
           ragStatus.textContent = `Indexing failed: ${err.message || err}`;
         } finally {
@@ -1875,6 +1948,7 @@ An earlier draft reportedly circulated only among the authors and a handful of e
           ragIndex = [];
           try { localStorage.removeItem(KEYS.rag_index); } catch {}
           ragStatus.textContent = "Index cleared.";
+          updatePresetChipState();
         });
       }
 
@@ -2405,6 +2479,8 @@ An earlier draft reportedly circulated only among the authors and a handful of e
         ragDocInput.value = "";
         ragIndex = [];
         ragStatus.textContent = "No documents indexed.";
+        pendingPresetId = null;
+        updatePresetChipState();
         supabaseUrlInput.value = "";
         supabaseKeyInput.value = "";
         for (const r of memoryBackendRadios) r.checked = (r.value === "local");

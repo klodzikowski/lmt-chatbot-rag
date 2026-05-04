@@ -33,7 +33,7 @@ RAG (retrieval-augmented generation) means: pull relevant passages from an index
 
 Now feed it some documents. To see how the two retrieval modes differ at *index time*, set the mode to keyword first—indexing in keyword mode is free (no OpenAI call, no embedding).
 
-1. Open the **RAG** drawer. Set **Retrieval method** to **Keyword (BM25)**.
+1. Open the **Retrieval-Augmented Generation (RAG)** drawer. Set **Retrieval method** to **Keyword (BM25)**.
 2. Click the **Jabłoński-Żukowski Conjecture (made-up)** preset → **Index document**. Status reads *"Added N chunks (keyword mode — no embeddings)."* Pure JavaScript chunking, no API call.
 3. Click the **Anglistyka Department Spring Review (made-up)** preset—a companion piece that paraphrases the same ideas in different words and adds dates, departmental reception, and follow-up plans. **Index document** again. Chunks accumulate (append mode); the index now spans two related docs.
 
