@@ -46,12 +46,12 @@ Older algorithm, simpler logic. Match query words to chunk words, weighted by ra
 1. The **Retrieval method** radio should still be on **Keyword (BM25)** from Task 2.
 2. Click the **?** next to it for a one-paragraph explanation. Read it.
 3. Send: *"What is the Anglistyka Effect?"*—this query contains a verbatim string from the doc.
-4. The reply should answer correctly. The meta line should show `+1 RAG chunks` (purple chip).
+4. The reply should answer correctly. The meta line should show `+3 RAG chunks` (purple chip—top-3 by BM25 score, prepended to the system prompt).
 5. Drawer footer → **Detailed JSON**. Find the assistant turn → `retrieved_context` (the actual passages injected) and `retrieval_mode` should say `"keyword"`.
 
 What this proves: **keyword retrieval matches by exact string**. No embeddings, no API call at chat time—just term frequency × inverse document frequency × length normalisation in ~50 lines of vanilla JS. The algorithm is from the 1990s (Robertson and Spärck Jones), still the default in Elasticsearch and OpenSearch.
 
-Now try a query the doc doesn't contain verbatim: *"Which group bends reality the most?"* You'll likely see no `+N RAG chunks` chip—nothing matches. That's the keyword limitation.
+Now try a paraphrase that shares no content words with the docs: *"Why might gifted polyglots blunder addition?"*—same idea as the Anglistyka Effect, expressed in synonyms. No `+N RAG chunks` chip; the model falls back to general knowledge and gives a generic answer about cognitive load. That's the keyword limitation: BM25 only matches what's lexically present.
 
 ## Task 4—Vector retrieval (semantic embeddings)
 
@@ -59,12 +59,12 @@ Newer algorithm, abstract logic. Convert the query and each chunk into a high-di
 
 1. Switch the **Retrieval method** radio to **Semantic (cosine on embeddings)**. Both chips drop the green ✓—keyword-indexed chunks have text but no embeddings, so semantic can't query them yet.
 2. Click the **?** for a paragraph on how it works.
-3. Send the same query that just failed in keyword mode: *"Which group bends reality the most?"*
+3. Send the same query that just failed in keyword mode: *"Why might gifted polyglots blunder addition?"*
 4. **First-time cost.** Because we indexed in keyword mode (text only, no embeddings), the app embeds each chunk on the fly before ranking. Status counts up *"Lazy-embedding chunk X of Y…"* once, then both chips re-green—chunks now have embeddings, queryable in either mode. Future semantic queries skip the backfill.
-5. The reply should pull the answer from the indexed chunks. Meta line shows `+1 RAG chunks`.
+5. The reply should pull the answer from the indexed chunks—mentioning *affective arithmetic* and *2 + 2 yielding 5*. Meta line shows `+3 RAG chunks`.
 6. Detailed JSON → `retrieval_mode` should now say `"semantic"`.
 
-What this proves: **semantic retrieval matches by meaning**. The query embeds into a 1536-dimensional vector via OpenAI's `text-embedding-3-small`, and cosine ranking surfaces the chunk about the Universe-Bending Lemma even though the query doesn't share a word with it. One OpenAI embedding call per query (plus the one-time backfill at the moment of mode-switching).
+What this proves: **semantic retrieval matches by meaning**. The query embeds into a 1536-dimensional vector via OpenAI's `text-embedding-3-small`, and cosine ranking surfaces the chunks about affective arithmetic even though the query shares zero content words with the docs. One OpenAI embedding call per query (plus the one-time backfill at the moment of mode-switching).
 
 ## Task 5—Compare side by side
 
@@ -73,9 +73,9 @@ Same indexed document. Same chunks. Different ranking. Run each query in **both*
 | Query | Keyword (BM25) | Semantic (vectors) |
 | --- | --- | --- |
 | *What is the Anglistyka Effect?* | works (faster, no API call) | works |
-| *Which group bends reality the most?* | likely fails—no overlap | works—catches the meaning |
-| *Define JZCI* | works—exact acronym match | partial—depends on embedding |
-| *Tell me about exam-week arithmetic* | partial—only "exam"/"arithmetic" might match | works—paraphrase wins |
+| *Why might gifted polyglots blunder addition?* | fails—zero shared content words | works—paraphrase catches the meaning |
+| *Define JZCI* | acronym matches, but the 500-char chunk split hides the expansion ("Cognitive Index" lands in the previous chunk)—reply often says "not defined" | works—pulls in the surrounding context, gives the full expansion |
+| *Tell me about exam-week arithmetic* | works—both terms in docs | works—same |
 
 What this proves: **neither mode dominates**. Production systems combine both—keyword for verbatim, semantic for paraphrase, weight the scores, ship. That's "hybrid search."
 
