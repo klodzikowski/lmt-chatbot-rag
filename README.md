@@ -34,8 +34,8 @@ RAG (retrieval-augmented generation) means: pull relevant passages from an index
 Now feed it some documents. To see how the two retrieval modes differ at *index time*, set the mode to keyword first—indexing in keyword mode is free (no OpenAI call, no embedding).
 
 1. Open the **Retrieval-Augmented Generation (RAG)** drawer. Set **Retrieval method** to **Keyword (BM25)**.
-2. Click the **Jabłoński-Żukowski Conjecture (made-up)** preset → **Index document**. Status reads *"Added N chunks (keyword mode — no embeddings)."* Pure JavaScript chunking, no API call.
-3. Click the **Anglistyka Department Spring Review (made-up)** preset—a companion piece that paraphrases the same ideas in different words and adds dates, departmental reception, and follow-up plans. **Index document** again. Chunks accumulate (append mode); the index now spans two related docs.
+2. Click the **Jabłoński-Żukowski Conjecture (made-up)** preset → **Index document**. The chip turns green ✓. Status reads *"Added N chunks (keyword mode — no embeddings)."* Pure JavaScript chunking, no API call.
+3. Click the **Anglistyka Department Spring Review (made-up)** preset—a companion piece that paraphrases the same ideas in different words and adds dates, departmental reception, and follow-up plans. **Index document** again. Both chips green now—chunks accumulate (append mode); the index spans two related docs.
 
 The cost difference between modes will show up when we switch to semantic in Task 4.
 
@@ -57,10 +57,10 @@ Now try a query the doc doesn't contain verbatim: *"Which group bends reality th
 
 Newer algorithm, abstract logic. Convert the query and each chunk into a high-dimensional vector; rank chunks by cosine similarity to the query vector.
 
-1. Switch the **Retrieval method** radio to **Semantic (cosine on embeddings)**.
+1. Switch the **Retrieval method** radio to **Semantic (cosine on embeddings)**. Both chips drop the green ✓—keyword-indexed chunks have text but no embeddings, so semantic can't query them yet.
 2. Click the **?** for a paragraph on how it works.
 3. Send the same query that just failed in keyword mode: *"Which group bends reality the most?"*
-4. **First-time cost.** Because we indexed in keyword mode (text only, no embeddings), the app now embeds each chunk on the fly before ranking. Status shows *"Lazy-embedding chunk X of Y…"* once. Future semantic queries skip this step—the embeddings are now cached.
+4. **First-time cost.** Because we indexed in keyword mode (text only, no embeddings), the app embeds each chunk on the fly before ranking. Status counts up *"Lazy-embedding chunk X of Y…"* once, then both chips re-green—chunks now have embeddings, queryable in either mode. Future semantic queries skip the backfill.
 5. The reply should pull the answer from the indexed chunks. Meta line shows `+1 RAG chunks`.
 6. Detailed JSON → `retrieval_mode` should now say `"semantic"`.
 
