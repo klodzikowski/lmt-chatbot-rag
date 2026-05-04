@@ -1068,7 +1068,7 @@ Costs one OpenAI embedding call per query." aria-label="How semantic retrieval w
               </label>
             </div>
 
-            <p class="field-note" style="margin-top:.4rem;margin-bottom:.35rem;font-weight:600;color:var(--fg)">Try a preset:</p>
+            <p class="field-note" style="margin-top:.4rem;margin-bottom:.35rem;font-weight:600;color:var(--fg)">Try an example document:</p>
             <div id="preset-docs"></div>
             <div class="field">
               <div class="field-header">
@@ -1326,7 +1326,7 @@ If the answer is no, accept cleanly: "Thanks—I'll have it in by [original dead
       const PRESET_DOCS = [
         {
           id: "chomsky",
-          name: "Noam Chomsky—life and theory",
+          name: "Noam Chomsky (real Wikipedia entry extract)",
           blurb: "Linguist, philosopher, and the formal-grammar hierarchy.",
           content: `Avram Noam Chomsky was born on 7 December 1928 in East Oak Lane, Philadelphia, to William Chomsky and Elsie Simonofsky, both Hebrew scholars who had emigrated from Eastern Europe. He earned his PhD from the University of Pennsylvania in 1955 under the supervision of Zellig Harris, with a dissertation titled "Transformational Analysis." He joined the Massachusetts Institute of Technology the same year and spent his entire academic career there, becoming Institute Professor in 1976 and emeritus in 2002. Since 2017 he has also held a part-time position at the University of Arizona.
 
@@ -1338,7 +1338,7 @@ Beyond linguistics, Chomsky is known for his political writing. His 1988 book "M
         },
         {
           id: "jablonski-zukowski",
-          name: "Jabłoński-Żukowski Conjecture (made-up)",
+          name: "Jabłoński-Żukowski Conjecture (fake Wikipedia-style entry, 2025)",
           blurb: "Fictional. Strongest demo of RAG-only knowledge—the LLM cannot guess.",
           content: `The Jabłoński-Żukowski Conjecture, also known as the Cognitive-Mathematical Universe-Bending Theorem (CMUBT), was proposed in 2024 by Jabłoński (mathematician) and Żukowski (cognitive linguist) at the Wydział Anglistyki, Adam Mickiewicz University in Poznań, Poland. It is the first formal theory to combine number theory with cognitive linguistics, and it should not work, but apparently does.
 
@@ -1356,7 +1356,7 @@ The conjecture was first presented at the 2024 informal Poznań Cognitive-Mathem
         },
         {
           id: "department-review",
-          name: "Anglistyka Department Spring Review (made-up)",
+          name: "Anglistyka Department Spring Review (fake journal-style paper, 2026)",
           blurb: "Companion to the Conjecture. Paraphrases the same ideas without naming the authors—designed to hit semantic search but slip past keyword.",
           content: `ANGLISTYKA DEPARTMENT SPRING REVIEW — MARCH 2026
 
