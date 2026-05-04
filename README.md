@@ -12,7 +12,11 @@ A reference fork of [`lmt-chatbot-skills`](https://github.com/klodzikowski/lmt-c
 
 ## Task 1—Skills
 
-A skill is a markdown blob the bot can summon on demand. Same shape across the industry: Anthropic Skills, OpenAI Custom GPT instructions, Cursor Rules. Different branding, identical idea.
+Over the past few months, the industry has rapidly shifted toward **skills**: structured, composable extensions of the system prompt. Their value comes from being shareable—Anthropic ships Skills, Cursor has Rules, OpenAI has Custom GPT instructions. Different branding, identical shape: a markdown file containing instructions, know-how, or domain rules. It could be a company's style guide, a procedure manual, the voice of a brand—anything you'd otherwise have to paraphrase into a prompt every time.
+
+The authoring discipline is *encapsulation*: capture how a thing is done in one place, version it, share it. The goal isn't one mega-prompt with everything stuffed in. It's a library of focused skills the model can pick from.
+
+In this app we pre-select skills (you tick a checkbox) so the demo is easy to follow. In production the model usually decides which to apply—an admin enables a set, users may import their own, and the model picks the right one mid-conversation. That brings security implications around what gets imported, trusted, and run.
 
 1. Open the **Skills** drawer. Three preset checkboxes: **Top-mark thesis**, **Tight summariser**, **Stretch a deadline**.
 2. Tick **Top-mark thesis** and ask *"Help me with a thesis on agentic AI in education."* The reply should land in coach voice, opening with one Socratic question.
@@ -20,8 +24,6 @@ A skill is a markdown blob the bot can summon on demand. Same shape across the i
 4. Tick **two presets** at once (Top-mark thesis + Tight summariser) and resend. Behaviours combine.
 5. Add *"Always reply in haiku"* to the **Your skill (markdown)** textarea. Send anything. All three combine.
 6. Drawer footer → **Simple JSON**. Open the file. Find the field `system_prompt_assembled`—that's the actual string the model saw, with all active skills concatenated under `---` separators.
-
-What this proves: **skills are composable format constraints**. You stack them; the bot follows them every reply.
 
 ## Task 2—Index a RAG document
 
