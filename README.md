@@ -25,8 +25,12 @@ What this proves: **skills are composable format constraints**. You stack them; 
 
 RAG (retrieval-augmented generation) means: pull relevant passages from an indexed document into the system prompt before each reply. First we index. Then we query.
 
+**Baseline first.** Before giving the bot any document, see what it already knows. Send: *"What is the Anglistyka Effect?"* — the term comes from a fictional paper we're about to load, so the model has no training data on it. It'll either confess ignorance or hallucinate something plausible. That's the baseline — no retrieval, no grounding.
+
+Now feed it the document:
+
 1. Open the **RAG** drawer.
-2. Click the **Jabłoński-Żukowski Conjecture (made-up)** preset button. The textarea fills with a fictional academic paper.
+2. Click the **Jabłoński-Żukowski Conjecture (made-up)** preset button. The textarea fills with the fictional paper.
 3. Click **Index document**. Status counts "Embedding chunk 1 of N…" then "Added N chunks. N total in the index."
 
 Each chunk is embedded once via OpenAI's `text-embedding-3-small`. The same indexed chunks serve **both** retrieval algorithms below—only the ranking differs.
