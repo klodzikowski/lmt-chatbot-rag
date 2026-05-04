@@ -1,83 +1,81 @@
 # LMT Chatbot #3 (RAG)
 
-Homework: 
+A reference fork of [`lmt-chatbot-skills`](https://github.com/klodzikowski/lmt-chatbot-skills) for Class 21 of the 2 MA LMT *Artificial Intelligence* course at Adam Mickiewicz University. Today we add **skills** (markdown blobs the bot summons on demand) and **RAG** (retrieval from an indexed document, with two algorithms side-by-side—keyword and vector).
 
-Optional video: 
+**Skills before RAG.** When a markdown skill fits, prefer it—deterministic, version-controllable, no retrieval failures. Reach for RAG when the knowledge is too big to paste, or changes faster than you can edit a file.
 
-[link]
-
-A reference fork of [`lmt-chatbot-skills`](https://github.com/klodzikowski/lmt-chatbot-skills) for Class 21 of the 2 MA LMT *Artificial Intelligence* course at Adam Mickiewicz University. Today we extend RAG with a second retrieval algorithm—**keyword search (BM25)**—alongside the existing semantic retrieval, switchable live in the RAG drawer.
-
-**Industry context.** RAG isn't synonymous with vector databases. The default in production today is **hybrid search**: BM25 keyword retrieval combined with dense vector search, often with a learned sparse layer (SPLADE) in between. Elasticsearch, OpenSearch, Weaviate, Qdrant, and Pinecone all ship hybrid out of the box. BM25 is old—1990s, Robertson and Spärck Jones—but still wins for exact-string queries: codes, proper nouns, acronyms. The "always reach for vectors" reflex is wrong; pick the tool that fits the problem.
+**RAG ≠ vector databases.** The default in production today is hybrid search: keyword retrieval (BM25, used in Elasticsearch, OpenSearch, Lucene) combined with dense vector search, sometimes with a learned sparse layer (SPLADE) in between. BM25 is from the 1990s but still wins for exact-string queries—codes, proper nouns, acronyms. We'll start there.
 
 **Try it:** [klodzikowski.github.io/lmt-chatbot-rag](https://klodzikowski.github.io/lmt-chatbot-rag/). New URL means new storage—you'll need to re-enter your OpenAI key.
 
-## Task 1—Open the app
+## Setup
 
 1. Go to <https://klodzikowski.github.io/lmt-chatbot-rag/>.
 2. Open the drawer (hamburger top-left). Settings is open by default; Memory, Skills, RAG are collapsed.
 3. Paste your OpenAI API key into Settings → OpenAI API key.
 4. Send a test message. A reply should land within a few seconds.
 
-Same skeleton as last week's `lmt-chatbot-skills`, with one new control in the RAG drawer.
+## Task 1—Skills
 
-## Task 2—Index a preset document
+A skill is a markdown blob the bot can summon on demand. Same shape across the industry: Anthropic Skills, OpenAI Custom GPT instructions, Cursor Rules. Different branding, identical idea.
+
+1. Open the **Skills** drawer. Three preset checkboxes: **Top-mark thesis**, **Tight summariser**, **Stretch a deadline**.
+2. Tick **Top-mark thesis** and ask *"Help me with a thesis on agentic AI in education."* The reply should land in coach voice, opening with one Socratic question.
+3. Untick. Resend the same question. Generic helper voice.
+4. Tick **two presets** at once (Top-mark thesis + Tight summariser) and resend. Behaviours combine.
+5. Add *"Always reply in haiku"* to the **Your skill (markdown)** textarea. Send anything. All three combine.
+6. Drawer footer → **Simple JSON**. Open the file. Find the field `system_prompt_assembled`—that's the actual string the model saw, with all active skills concatenated under `---` separators.
+
+What this proves: **skills are composable format constraints**. You stack them; the bot follows them every reply.
+
+## Task 2—Index a RAG document
+
+RAG (retrieval-augmented generation) means: pull relevant passages from an indexed document into the system prompt before each reply. First we index. Then we query.
 
 1. Open the **RAG** drawer.
-2. Click the **Jabłoński-Żukowski Conjecture (made-up)** preset button. The textarea fills with the text.
+2. Click the **Jabłoński-Żukowski Conjecture (made-up)** preset button. The textarea fills with a fictional academic paper.
 3. Click **Index document**. Status counts "Embedding chunk 1 of N…" then "Added N chunks. N total in the index."
 
-Each chunk is embedded once via OpenAI's `text-embedding-3-small`. The same indexed chunks serve both retrieval modes—only the ranking differs.
+Each chunk is embedded once via OpenAI's `text-embedding-3-small`. The same indexed chunks serve **both** retrieval algorithms we'll try next—only the ranking differs.
 
-## Task 3—Semantic retrieval
+## Task 3—Keyword retrieval (BM25)
 
-The mode you already met last week.
+Older algorithm, simpler logic. Match query words to chunk words, weighted by rarity (rare words count more) and chunk length (long chunks would otherwise unfairly outrank short ones).
 
-1. In the RAG drawer, the **Retrieval method** radio defaults to **Semantic (cosine on embeddings)**.
-2. Click the **?** next to it for a one-paragraph explanation of how it works.
-3. Send: *"Which group bends reality the most?"*—this query has no word overlap with the indexed text.
-4. The reply should pull the answer from the indexed chunks. The meta line should show `+1 RAG chunks` (purple chip).
-5. Drawer footer → **Detailed JSON**. Open the file. Find the assistant turn → `retrieved_context` (the actual passages injected) and `retrieval_mode` should say `"semantic"`.
-
-What this proves: **semantic retrieval matches by meaning**. Embeddings group "bends reality" with passages about the Universe-Bending Lemma even though those exact words don't appear in the query.
-
-## Task 4—Keyword retrieval (BM25)
-
-The new mode.
-
-1. Switch the **Retrieval method** radio to **Keyword (BM25)**.
-2. Click the **?** next to it to read how BM25 scores chunks.
+1. In the RAG drawer, set **Retrieval method** to **Keyword (BM25)**.
+2. Click the **?** next to it for a one-paragraph explanation. Read it.
 3. Send: *"What is the Anglistyka Effect?"*—this query contains a verbatim string from the doc.
-4. The reply should answer correctly, with `+1 RAG chunks` on the meta line.
-5. Detailed JSON → `retrieval_mode` should now say `"keyword"`.
+4. The reply should answer correctly. The meta line should show `+1 RAG chunks` (purple chip).
+5. Drawer footer → **Detailed JSON**. Find the assistant turn → `retrieved_context` (the actual passages injected) and `retrieval_mode` should say `"keyword"`.
 
-What this proves: **keyword retrieval matches by exact string**. No embeddings, no API call at chat time—just term frequency × inverse document frequency × length normalisation in ~50 lines of vanilla JS.
+What this proves: **keyword retrieval matches by exact string**. No embeddings, no API call at chat time—just term frequency × inverse document frequency × length normalisation in ~50 lines of vanilla JS. The algorithm is from the 1990s (Robertson and Spärck Jones), still the default in Elasticsearch and OpenSearch.
+
+Now try a query the doc doesn't contain verbatim: *"Which group bends reality the most?"* You'll likely see no `+N RAG chunks` chip—nothing matches. That's the keyword limitation.
+
+## Task 4—Vector retrieval (semantic embeddings)
+
+Newer algorithm, abstract logic. Convert the query and each chunk into a high-dimensional vector; rank chunks by cosine similarity to the query vector.
+
+1. Switch the **Retrieval method** radio to **Semantic (cosine on embeddings)**.
+2. Click the **?** for a paragraph on how it works.
+3. Send the same query that just failed in keyword mode: *"Which group bends reality the most?"*
+4. This time the reply should pull the answer from the indexed chunks. Meta line shows `+1 RAG chunks`.
+5. Detailed JSON → `retrieval_mode` should now say `"semantic"`.
+
+What this proves: **semantic retrieval matches by meaning**. The query embeds into a 1536-dimensional vector via OpenAI's `text-embedding-3-small`, and cosine ranking surfaces the chunk about the Universe-Bending Lemma even though the query doesn't share a word with it. One OpenAI embedding call per query.
 
 ## Task 5—Compare side by side
 
-Run each query in **both** modes and watch the meta line. Some queries hit in one mode, miss in the other:
+Same indexed document. Same chunks. Different ranking. Run each query in **both** modes and watch the meta line:
 
-| Query | Semantic mode | Keyword mode |
+| Query | Keyword (BM25) | Semantic (vectors) |
 | --- | --- | --- |
-| *What is the Anglistyka Effect?* | works | works (faster, no API call) |
-| *Which group bends reality the most?* | works | likely fails—no overlap |
-| *Define JZCI* | partial—depends on embedding | works—exact acronym match |
-| *Tell me about exam-week arithmetic* | works—paraphrase wins | partial—only "exam" or "arithmetic" might match |
+| *What is the Anglistyka Effect?* | works (faster, no API call) | works |
+| *Which group bends reality the most?* | likely fails—no overlap | works—catches the meaning |
+| *Define JZCI* | works—exact acronym match | partial—depends on embedding |
+| *Tell me about exam-week arithmetic* | partial—only "exam"/"arithmetic" might match | works—paraphrase wins |
 
-What this proves: **neither mode dominates**. The 2026 production answer is hybrid—combine both, weight the scores, ship.
-
-## Task 6—Skills (the bit we missed last week)
-
-Quick walkthrough of the Skills drawer, since we didn't get to it in Class 20.
-
-1. Open the **Skills** drawer. Three preset checkboxes: **Top-mark thesis**, **Tight summariser**, **Stretch a deadline**.
-2. Tick **Top-mark thesis** and ask *"Help me with a thesis on agentic AI in education."* The reply should land in coach voice with a Socratic question.
-3. Untick. Resend. Generic helper voice.
-4. Tick **two presets** at once and resend. Behaviours combine.
-5. Add *"Always reply in haiku"* to the **Your skill (markdown)** textarea. Send any message. All three combine.
-6. Drawer footer → **Simple JSON** → field `system_prompt_assembled` shows the concatenated prompt with `---` separators.
-
-A skill is a markdown blob the bot summons on demand—same shape as Anthropic Skills, OpenAI Custom GPT instructions, Cursor Rules. Different branding, identical idea.
+What this proves: **neither mode dominates**. Production systems combine both—keyword for verbatim, semantic for paraphrase, weight the scores, ship. That's "hybrid search."
 
 ## Reset behaviour
 
@@ -123,7 +121,7 @@ for each query term t:
     score += idf * norm
 ```
 
-`k1 = 1.5` controls how quickly term frequency saturates (the 10th occurrence of a word matters less than the 1st). `b = 0.75` controls length normalisation (long chunks otherwise outrank short ones unfairly). Standard Robertson-Spärck Jones values, the default in Elasticsearch and OpenSearch.
+`k1 = 1.5` controls how quickly term frequency saturates (the 10th occurrence of a word matters less than the 1st). `b = 0.75` controls length normalisation. Standard Robertson-Spärck Jones values, the default in Elasticsearch and OpenSearch.
 
 ## Source map
 
