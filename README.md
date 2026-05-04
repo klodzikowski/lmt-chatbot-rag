@@ -93,6 +93,25 @@ What this proves: **neither mode dominates**. Production systems combine both—
 | **RAG (keyword)** | None—BM25 in vanilla JS | Top-3 chunks (BM25-ranked) under the same header |
 | **Orchestrator** (`buildAugmentedSystemPrompt`) | None | Joins the contributions with `---` and ships the prompt to `/v1/chat/completions` |
 
+### What the model actually receives
+
+The system message OpenAI gets on each turn looks like this:
+
+```
+[system_prompt_assembled — base + active skills]
+
+---
+
+# Retrieved context
+
+Use the following passages from the indexed document where they help.
+If the answer isn't in them, say so plainly rather than guessing.
+
+[retrieved_context for this turn]
+```
+
+The Detailed JSON splits these for inspectability: skills live under top-level `system_prompt_assembled` (static across the conversation); RAG chunks live under each assistant turn's `retrieved_context` (recomputed per query, hence the per-turn count in `retrieved_chunk_count`). The user message stays clean—just the question. Retrieval goes into the **system** role on purpose: that role tells the model "treat this as authoritative context," whereas anything in the user role would read as if the human typed it.
+
 ### How indexing works per mode
 
 The **Index document** button is mode-aware:
